@@ -37,7 +37,7 @@ class CompanyController extends Controller
             'phone' => 'nullable|string|max:255',
             'email' => 'nullable|string|email|max:255',
             'contact_person' => 'nullable|string|max:255', // Ajouté selon votre migration
-            'status' => 'nullable|string|in:active,inactive', // Le statut est maintenant géré
+            'status' => 'nullable|string|', // Le statut est maintenant géré
         ]);
 
         try {
@@ -86,7 +86,7 @@ class CompanyController extends Controller
             'phone' => 'nullable|string|max:255',
             'email' => 'nullable|string|email|max:255',
             'contact_person' => 'nullable|string|max:255', // Ajouté selon votre migration
-            'status' => 'sometimes|required|string|in:active,inactive', // Le statut est maintenant géré
+            'status' => 'sometimes|required|string|', // Le statut est maintenant géré
         ]);
 
         try {

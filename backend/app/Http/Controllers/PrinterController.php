@@ -164,6 +164,7 @@ class PrinterController extends Controller
                 'new_department_id' => $newDepartment->id,
                 'moved_by_user_id' => auth()->check() ? auth()->id() : null, // ID de l'utilisateur connecté, si disponible
                 'notes' => $request->notes,
+                'date_mouvement' => now(), // Date du mouvement, par défaut à la date actuelle
             ]);
 
             DB::commit(); // Valide la transaction

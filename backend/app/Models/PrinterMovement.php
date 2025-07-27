@@ -14,6 +14,7 @@ class PrinterMovement extends Model
         'old_department_id',
         'new_department_id',
         'moved_by_user_id',
+        'date_mouvement',
         'notes',
     ];
 

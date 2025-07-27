@@ -20,6 +20,7 @@ class CreatePrinterMovementsTable extends Migration
             $table->foreignId('new_department_id')->constrained('departments')->onDelete('cascade'); // Nouveau département
             $table->foreignId('moved_by_user_id')->nullable()->constrained('users')->onDelete('set null'); // Utilisateur qui a effectué le mouvement
             $table->text('notes')->nullable(); // Notes sur le mouvement
+            $table->timestamp('date_mouvement')->useCurrent(); // Date du mouvement, par défaut à la date actuelle
             $table->timestamps(); // created_at et updated_at
         });
     }
