@@ -11,13 +11,16 @@ class Intervention extends Model
     protected $fillable = [
         'start_date',
         'end_date',
+        'numero_demande',
         'client_id',
         'technician_id',
         'printer_id',
         'status',
         'description',
         'priority',
+        'solution',
         'intervention_type',
+        'date_previsionnelle',
     ];
 protected $casts = [
         'start_date' => 'datetime', // Convertira automatiquement en Carbon et gérera le format

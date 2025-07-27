@@ -26,6 +26,9 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->string('intervention_type')->nullable(); // Type d'intervention, par exemple 'Maintenance', 'Réparation', etc.
             $table->string('priority')->default('Moyenne');
+            $table->string('numero_demande')->unique(); // Code unique pour l'intervention
+            $table->text('solution')->nullable(); // Solution apportée, si applicable
+            $table->dateTime('date_previsionnelle')->nullable(); // Date prévisionnelle de l'intervention
 
             $table->timestamps();
         });

@@ -5,14 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Intervention;
-use App\Models\Printer;
-use App\Models\User;
+use App\Models\Printer; // Assurez-vous d'importer le modèle Printer
+use App\Models\User;    // Assurez-vous d'importer le modèle User
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB; // Pour des requêtes directes à la base de données
-// Si vous utilisez des modèles Eloquent, importez-les ici
-// use App\Models\Printer;
-// use App\Models\User;
-// use App\Models\Request as UserRequest; // Renommé pour éviter un conflit avec Request facade
+// use Illuminate\Support\Facades\DB; // Pas nécessaire si vous utilisez des modèles Eloquent
 
 class DashboardController extends Controller
 {
@@ -34,55 +30,40 @@ class DashboardController extends Controller
 
     public function getStats()
     {
-        // --- REMPLACEZ CECI PAR VOS VRAIES REQUÊTES À LA BASE DE DONNÉES ---
-        // Exemple avec des données factices :
-        // Vous devez utiliser vos modèles Eloquent (Printer, User, Request) ou DB::table()
-        // pour récupérer les nombres réels.
+        // Utilisation des modèles Eloquent pour récupérer les nombres réels
+        // Correction : Compte les imprimantes qui ne sont ni 'En Maintenance' ni 'Hors Service'
+        $printerCount = Printer::whereNotIn('status', ['En Maintenance', 'Hors Service'])->count();
+        $userCount = User::count();
+        // Correction : Compte seulement les interventions dont le statut est 'Terminée'
+        $requestCount = Intervention::where('status', 'Terminée')->count();
 
-        // Exemple avec Eloquent (si vous avez des modèles) :
-        // $printerCount = Printer::where('status', 'active')->count();
-        // $userCount = User::count();
-        // $requestCount = UserRequest::count(); // Comptez les requêtes en fonction de votre logique
-
-        // Exemple avec DB (si vous n'avez pas encore de modèles pour tout) :
-        $printerCount = DB::table('printers')->where('status', 'active')->count();
-        $userCount = DB::table('users')->count();
-        $requestCount = DB::table('interventions')->count(); // Assurez-vous que 'requests' est le nom de votre table
+        // Nouveau : Compter les imprimantes par statut spécifique
+        $maintenancePrinterCount = Printer::where('status', 'En Maintenance')->count();
+        $outOfServicePrinterCount = Printer::where('status', 'Hors Service')->count();
 
         return response()->json([
-            'printerCount' => $printerCount,
+            'printerCount' => $printerCount, // Cette statistique représente maintenant les imprimantes actives (non en maintenance, non hors service)
             'userCount' => $userCount,
-            'requestCount' => $requestCount
+            'requestCount' => $requestCount, // Cette statistique représente les interventions terminées
+            'maintenancePrinterCount' => $maintenancePrinterCount, // Compteur pour les imprimantes en maintenance
+            'outOfServicePrinterCount' => $outOfServicePrinterCount, // Compteur pour les imprimantes hors service
         ]);
     }
 
     public function getRecentActivities()
     {
-        // --- REMPLACEZ CECI PAR VOS VRAIES REQUÊTES À LA BASE DE DONNÉES ---
-        // Exemple avec des données factices :
-        // Vous devrez interroger votre BDD pour obtenir les dernières activités.
-        // Cela pourrait être des logs, des dernières requêtes, interventions, etc.
-
-        // Exemple : récupérer les 5 dernières requêtes avec l'utilisateur associé
-        // $activities = UserRequest::with('user') // Assurez-vous d'avoir une relation 'user' sur votre modèle Request
-        //                  ->latest()
-        //                  ->limit(5)
-        //                  ->get()
-        //                  ->map(function($request) {
-        //                      return [
-        //                          'date' => $request->created_at->format('Y-m-d'),
-        //                          'user' => $request->user->name, // ou $request->user->email, etc.
-        //                          'action' => 'Demande de maintenance',
-        //                          'status' => $request->status,
-        //                      ];
-        //                  });
-
-        // Données factices pour l'exemple si vous n'avez pas encore la logique DB :
-        $recentActivities = [
-            ["date" => "2025-07-20", "user" => "Jean Dupont", "action" => "Nouvelle demande", "status" => "En attente"],
-            ["date" => "2025-07-19", "user" => "Admin", "action" => "Imprimante ajoutée", "status" => "Terminé"],
-            ["date" => "2025-07-18", "user" => "Pierre Martin", "action" => "Intervention N°123", "status" => "En cours"]
-        ];
+        // Exemple : récupérer les 5 dernières interventions
+        $recentActivities = Intervention::orderBy('created_at', 'desc')
+                                    ->limit(5) // Limiter à 5 activités récentes
+                                    ->get()
+                                    ->map(function($intervention) {
+                                        return [
+                                            'id' => $intervention->id,
+                                            'date' => $intervention->created_at->format('d/m/Y H:i'),
+                                            'description' => "Intervention #{$intervention->id}: {$intervention->intervention_type} - {$intervention->description}",
+                                            'status' => $intervention->status,
+                                        ];
+                                    });
 
         return response()->json($recentActivities);
     }

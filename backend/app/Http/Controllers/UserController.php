@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
@@ -102,4 +104,35 @@ class UserController extends Controller
 
         return response()->json(['message' => 'Utilisateur supprimé.']);
     }
+
+    public function changePassword(Request $request, User $user)
+    {
+        // Ensure the authenticated user is authorized to change this password
+        // An admin can change any user's password.
+        // A user can only change their own password.
+        if (Auth::id() !== $user->id && Auth::user()->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized to change this password.'], 403);
+        }
+
+        $request->validate([
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:8|confirmed', // 'confirmed' checks for new_password_confirmation
+        ]);
+
+        // Verify the current password for non-admin users changing their own password
+        // Admins can bypass current password check when changing other users' passwords if desired,
+        // but for a user changing their own, it's mandatory.
+        if (Auth::id() === $user->id && !Hash::check($request->current_password, $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Le mot de passe actuel est incorrect.'],
+            ]);
+        }
+
+        // Update the password
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        return response()->json(['message' => 'Mot de passe mis à jour avec succès.'], 200);
+    }
+
 }

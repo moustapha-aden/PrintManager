@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Intervention;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str; // Import Str facade if you decide to generate UUIDs on backend
 
 class InterventionController extends Controller
 {
@@ -14,16 +16,6 @@ class InterventionController extends Controller
     {
         $query = Intervention::query();
 
-        // Filtrer par technicien si le paramètre technician_id est présent
-        if ($request->has('technician_id')) {
-            $query->where('technician_id', $request->input('technician_id'));
-        }
-
-        // Filtrer par client si le paramètre client_id est présent
-        if ($request->has('client_id')) {
-            $query->where('client_id', $request->input('client_id'));
-        }
-
         // Charger les relations nécessaires
         $query->with([
             'client.company',
@@ -32,6 +24,72 @@ class InterventionController extends Controller
             'printer.department',
             'technician'
         ]);
+
+        // Logique de filtrage basée sur le rôle de l'utilisateur
+        $user = Auth::user(); // Récupérer l'utilisateur connecté
+
+        if ($user) { // S'assurer qu'un utilisateur est connecté
+            if ($user->role === 'client') {
+                // Un client ne voit que ses propres interventions
+                $query->where('client_id', $user->id);
+            } elseif ($user->role === 'technicien') {
+                // Un technicien voit ses interventions assignées OU les interventions en statut 'En Attente'
+                $query->where(function($q) use ($user) {
+                    $q->where('technician_id', $user->id);
+                });
+            }
+            // Les administrateurs voient toutes les interventions par défaut
+        }
+
+        // Ajoutez ici les filtres de recherche et de statut que votre frontend enverra
+        // Par exemple, si vous envoyez un paramètre 'status_filter' ou 'priority_filter'
+        if ($request->has('status_filter') && $request->input('status_filter') !== 'all') {
+            $query->where('status', $request->input('status_filter'));
+        }
+
+        if ($request->has('priority_filter') && $request->input('priority_filter') !== 'all') {
+            $query->where('priority', $request->input('priority_filter'));
+        }
+
+        if ($request->has('intervention_type_filter') && $request->input('intervention_type_filter') !== 'all') {
+            $query->where('intervention_type', $request->input('intervention_type_filter'));
+        }
+
+        if ($request->has('search_term')) {
+            $searchTerm = strtolower($request->input('search_term'));
+            $query->where(function ($q) use ($searchTerm) {
+                $q->whereRaw('LOWER(description) LIKE ?', ["%{$searchTerm}%"])
+                  ->orWhereRaw('LOWER(status) LIKE ?', ["%{$searchTerm}%"])
+                  ->orWhereRaw('LOWER(priority) LIKE ?', ["%{$searchTerm}%"])
+                  ->orWhereRaw('LOWER(intervention_type) LIKE ?', ["%{$searchTerm}%"])
+                  ->orWhere('id', 'like', "%{$searchTerm}%")
+                  ->orWhere('numero_demande', 'like', "%{$searchTerm}%") // Added search by numero_demande
+                  ->orWhereHas('printer', function ($pq) use ($searchTerm) {
+                      $pq->whereRaw('LOWER(model) LIKE ?', ["%{$searchTerm}%"])
+                         ->orWhereRaw('LOWER(brand) LIKE ?', ["%{$searchTerm}%"])
+                         ->orWhereRaw('LOWER(serial) LIKE ?', ["%{$searchTerm}%"])
+                         ->orWhereHas('company', function ($cq) use ($searchTerm) {
+                             $cq->whereRaw('LOWER(name) LIKE ?', ["%{$searchTerm}%"]);
+                         })
+                         ->orWhereHas('department', function ($dq) use ($searchTerm) {
+                             $dq->whereRaw('LOWER(name) LIKE ?', ["%{$searchTerm}%"]);
+                         });
+                  })
+                  ->orWhereHas('technician', function ($tq) use ($searchTerm) {
+                      $tq->whereRaw('LOWER(name) LIKE ?', ["%{$searchTerm}%"]);
+                  })
+                  ->orWhereHas('client', function ($clq) use ($searchTerm) {
+                      $clq->whereRaw('LOWER(name) LIKE ?', ["%{$searchTerm}%"])
+                          ->orWhereHas('company', function ($ccq) use ($searchTerm) {
+                              $ccq->whereRaw('LOWER(name) LIKE ?', ["%{$searchTerm}%"]);
+                          })
+                          ->orWhereHas('department', function ($cdq) use ($searchTerm) {
+                              $cdq->whereRaw('LOWER(name) LIKE ?', ["%{$searchTerm}%"]);
+                          });
+                  });
+            });
+        }
+
 
         // Optionnel: Ajouter un orderBy par défaut si non spécifié
         $query->orderByDesc('created_at');
@@ -60,14 +118,24 @@ class InterventionController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'start_date' => 'required|date', // CORRECTION: Changé 'dateTime' en 'date'
+            'numero_demande' => 'required|string|unique:interventions,numero_demande|max:255', // Validation for auto-generated code
+            'start_date' => 'required|date',
+            // 'end_date' => 'nullable|date|after_or_equal:start_date', // Added end_date to store validation
             'client_id' => 'nullable|exists:users,id',
             'technician_id' => 'nullable|exists:users,id',
             'printer_id' => 'required|exists:printers,id',
-            'status' => 'required|in:En Cours, Terminée,Annulée',
+            'status' => 'required|in:En Attente,En Cours,Terminée,Annulée', // Updated allowed statuses
+            'description' => 'nullable|string|max:1000', // Added description validation
             'priority' => 'required|in:Haute,Moyenne,Basse',
             'intervention_type' => 'required|string|max:255',
+            // 'notes' => 'nullable|string|max:1000', // Added notes validation
         ]);
+
+        // No need for hardcoded technician_id = 5 if frontend sends it or it's nullable
+        // If you want to assign a default technician when none is provided, do it here:
+        if (empty($validated['technician_id'])) {
+            $validated['technician_id'] = 5; // Or some other default logic
+        }
 
         $intervention = Intervention::create($validated);
 
@@ -82,18 +150,20 @@ class InterventionController extends Controller
         $intervention = Intervention::findOrFail($id);
 
         $validated = $request->validate([
-            'start_date' => 'sometimes|date', // CORRECTION: Changé 'dateTime' en 'date'
-            'end_date' => 'nullable|date|after_or_equal:start_date', // CORRECTION: Changé 'dateTime' en 'date'
+            'numero_demande' => 'sometimes|string|max:255', // numero_demande is usually not updated
+            'start_date' => 'sometimes|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
             'client_id' => 'nullable|exists:users,id',
             'technician_id' => 'nullable|exists:users,id',
             'printer_id' => 'sometimes|exists:printers,id',
-            'status' => 'sometimes',
+            'status' => 'sometimes|in:En Attente,En Cours,Terminée,Annulée', // Updated allowed statuses
             'description' => 'nullable|string|max:1000',
             'priority' => 'sometimes|in:Haute,Moyenne,Basse',
             'notes' => 'nullable|string|max:1000',
             'intervention_type' => 'sometimes|string|max:255',
+            'solution' => 'nullable|string|max:1000', // Added solution validation
+            'date_previsionnelle' => 'nullable|date|after_or_equal:start_date',
         ]);
-
         $intervention->update($validated);
 
         return response()->json($intervention, 200);

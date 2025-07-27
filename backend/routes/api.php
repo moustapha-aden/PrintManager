@@ -37,7 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
     Route::get('/dashboard/recent-activities', [DashboardController::class, 'getRecentActivities']);
-
+    Route::put('/users/{user}/change-password', [UserController::class, 'changePassword']);
     // Analytics spécifiques
     Route::prefix('analytics')->group(function () {
         Route::get('overview', [AnalyticsController::class, 'getOverviewStats']);
