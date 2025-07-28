@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('statusDisplay')->default('active'); // "Active", "En maintenance", "Hors service"
             $table->foreignId('company_id')->constrained('companies'); // ID de la société, clé étrangère
             $table->foreignId('department_id')->constrained('departments'); // ID du département, clé étrangère
-            $table->date('installDate');
+            $table->date('installDate')->nullable();
             $table->timestamps(); // created_at et updated_at
         });
     }

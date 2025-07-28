@@ -60,10 +60,10 @@ class PrinterController extends Controller
             'brand' => 'required|string|max:255',
             'serial' => 'required|string|max:255|unique:printers',
             // NOUVEAU: Validation 'in' pour le statut
-            'status' => ['required', 'string', Rule::in(['active', 'inactive', 'in_maintenance', 'out_of_service', 'in_stock'])],
+            'status' => ['required', 'string', Rule::in(['active', 'inactive', 'En maintenance', 'hors-service'])],
             'company_id' => 'required|exists:companies,id',
             'department_id' => 'required|exists:departments,id',
-            'installDate' => 'required|date',
+            'installDate' => 'sometimes|date',
         ]);
 
         // Supprimez cette ligne si statusDisplay n'est pas une colonne de DB
@@ -95,7 +95,7 @@ class PrinterController extends Controller
                 Rule::unique('printers')->ignore($printer->id),
             ],
             // NOUVEAU: Validation 'sometimes|in' pour le statut
-            'status' => ['sometimes', 'string', Rule::in(['active', 'inactive', 'in_maintenance', 'out_of_service', 'in_stock'])],
+            'status' => ['sometimes', 'string', Rule::in(['active', 'inactive', 'En maintenance', 'hors-service'])],
             // Si statusDisplay est une colonne en DB et doit être mise à jour
             'statusDisplay' => 'sometimes|string|max:255',
             'company_id' => 'sometimes|exists:companies,id',

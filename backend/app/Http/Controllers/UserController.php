@@ -11,10 +11,31 @@ use Illuminate\Validation\ValidationException;
 class UserController extends Controller
 {
     // Liste tous les utilisateurs avec leurs sociétés et départements
-    public function index()
+    public function index(Request $request) // Ajoutez Request $request ici
     {
-        return User::with(['company', 'department'])->get();
+        $query = User::query();
+
+        // Si un paramètre 'role' est fourni dans la requête, filtre par ce rôle
+        if ($request->has('role')) {
+            $roles = explode(',', $request->input('role')); // Permet de passer plusieurs rôles séparés par des virgules (ex: ?role=admin,technicien)
+            $query->whereIn('role', $roles);
+        }
+
+        // Si tu veux spécifiquement les techniciens et admins pour l'assignation,
+        // tu peux aussi faire ceci si aucun rôle n'est spécifié, ou si tu veux une route dédiée
+        // if (!$request->has('role')) { // Si aucun rôle n'est spécifié, retourne tous les utilisateurs ou seulement admin/technicien
+        //     $query->whereIn('role', ['admin', 'technicien']); // Exemple: si tu veux par défaut seulement ces rôles
+        // }
+
+
+        // Charger les relations nécessaires
+        $query->with(['company', 'department']);
+
+        // Retourne les utilisateurs filtrés (ou tous si aucun filtre de rôle)
+        return $query->get();
     }
+
+
 
     // Affiche un utilisateur précis avec relations
     public function show($id)
