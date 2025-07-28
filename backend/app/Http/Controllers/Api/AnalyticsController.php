@@ -18,7 +18,7 @@ class AnalyticsController extends Controller
      */
     public function getOverviewStats(Request $request)
     {
-        // --- Logique de récupération des données réelles ---
+        //  Logique de récupération des données réelles
         // Pour l'instant, des données simulées.
         // Vous devrez implémenter la vraie logique de requête à la base de données ici.
 
@@ -42,7 +42,7 @@ class AnalyticsController extends Controller
      */
     public function getCompanyStats(Request $request)
     {
-        // --- Logique de récupération des données réelles ---
+        //  Logique de récupération des données réelles
         // Pour l'instant, des données simulées.
         // Vous devrez implémenter la vraie logique de requête à la base de données ici.
 
@@ -73,7 +73,7 @@ class AnalyticsController extends Controller
      */
     public function getFrequentErrors(Request $request)
     {
-        // --- Logique de récupération des données réelles ---
+        //  Logique de récupération des données réelles
         // Pour l'instant, des données simulées.
         // Vous devrez implémenter la vraie logique de requête à la base de données ici.
 
@@ -95,7 +95,7 @@ class AnalyticsController extends Controller
      */
     public function getPrintersNeedingAttention(Request $request)
     {
-        // --- Logique de récupération des données réelles ---
+        //  Logique de récupération des données réelles
         // Pour l'instant, des données simulées.
         // Vous devrez implémenter la vraie logique de requête à la base de données ici.
 
@@ -155,7 +155,7 @@ class AnalyticsController extends Controller
      */
     public function generateReport(Request $request, string $reportType)
     {
-        // --- Logique de génération de rapport ---
+        //  Logique de génération de rapport
         // C'est ici que vous généreriez réellement un PDF, CSV, etc.
         // Pour l'instant, nous allons renvoyer un simple fichier texte simulé.
 

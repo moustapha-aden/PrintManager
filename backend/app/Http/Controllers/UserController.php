@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Schema;
 
 class UserController extends Controller
 {
@@ -156,4 +158,10 @@ class UserController extends Controller
         return response()->json(['message' => 'Mot de passe mis à jour avec succès.'], 200);
     }
 
+    public function up(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->timestamp('last_login')->nullable()->after('remember_token'); // Ou après une autre colonne pertinente
+        });
+    }
 }

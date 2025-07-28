@@ -23,18 +23,18 @@ class DashboardController extends Controller
      */
     public function getStats()
     {
-        // --- UTILISATEURS ---
+        //  UTILISATEURS
         $userCount = User::count();
 
-        // --- SOCIÉTÉS ---
+        //  SOCIÉTÉS
         $companyCount = Company::count();
         $activeCompanyCount = Company::where('status', 'active')->count();
         $inactiveCompanyCount = Company::where('status', 'inactive')->count();
 
-        // --- DÉPARTEMENT "ENTREPÔT" ---
+        //  DÉPARTEMENT "ENTREPÔT"
         $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
 
-        // --- IMPRIMANTES ---
+        //  IMPRIMANTES
         $totalPrinterCount = Printer::count();
         $activePrinterCount = Printer::where('status', 'active')->count();
         $printersOutOfServiceCount = Printer::where('status', 'hors-service')->count();
@@ -52,7 +52,7 @@ class DashboardController extends Controller
         // Imprimantes non attribuées à un département
         $unassignedPrintersCount = Printer::whereNull('department_id')->count();
 
-        // --- INTERVENTIONS ---
+        //  INTERVENTIONS
         $totalInterventionCount = Intervention::count();
 
         $interventionsStatusCounts = Intervention::select('status', DB::raw('count(*) as count'))
@@ -67,7 +67,7 @@ class DashboardController extends Controller
             'Annulee' => $interventionsStatusCounts['Annulee'] ?? 0,
         ];
 
-        // --- POURCENTAGES (Exemple : % imprimantes actives sur le total) ---
+        //  POURCENTAGES (Exemple : % imprimantes actives sur le total)
         $printerStatsPercentages = [
             'active' => $totalPrinterCount ? round(($activePrinterCount / $totalPrinterCount) * 100, 1) : 0,
             'hors_service' => $totalPrinterCount ? round(($printersOutOfServiceCount / $totalPrinterCount) * 100, 1) : 0,
@@ -76,15 +76,15 @@ class DashboardController extends Controller
         ];
 
         return response()->json([
-            // --- Utilisateurs ---
+            //  Utilisateurs
             'userCount' => $userCount,
 
-            // --- Sociétés ---
+            //  Sociétés
             'companyCount' => $companyCount,
             'activeCompanyCount' => $activeCompanyCount,
             'inactiveCompanyCount' => $inactiveCompanyCount,
 
-            // --- Imprimantes ---
+            //  Imprimantes
             'totalPrinterCount' => $totalPrinterCount,
             'activePrinterCount' => $activePrinterCount,
             'printersOutOfServiceCount' => $printersOutOfServiceCount,
@@ -94,7 +94,7 @@ class DashboardController extends Controller
             'unassignedPrintersCount' => $unassignedPrintersCount,
             'printerStatsPercentages' => $printerStatsPercentages,
 
-            // --- Interventions ---
+            //  Interventions
             'totalInterventionCount' => $totalInterventionCount,
             'interventionsStatus' => $interventionsStatus,
         ]);

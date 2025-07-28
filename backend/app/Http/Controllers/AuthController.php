@@ -38,7 +38,7 @@ class AuthController extends Controller // <-- TRÈS IMPORTANT : Le nom de la cl
         // 'auth_token' est le nom du token, vous pouvez le personnaliser
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // --- Gestion des rôles ---
+        //  Gestion des rôles
         // Nous allons utiliser la colonne 'role' de votre modèle User.
         // Si vous avez une logique de rôles plus complexe (par ex. via une table de pivot),
         // vous devrez adapter cette partie pour récupérer tous les rôles associés à l'utilisateur.

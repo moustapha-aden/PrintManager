@@ -28,6 +28,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('users', UserController::class);
     Route::apiResource('printers', PrinterController::class);
     Route::apiResource('interventions', InterventionController::class);
+    Route::get('/interventions/statistics', [InterventionController::class, 'getInterventionStatistics']);
+    Route::get('/interventions/by-period', [InterventionController::class, 'getInterventionsByPeriod']);
+
     Route::apiResource('companies', CompanyController::class);
     Route::apiResource('departments', DepartmentController::class);
     Route::apiResource('analyse', AnalyticsController::class); // si tu veux la garder
