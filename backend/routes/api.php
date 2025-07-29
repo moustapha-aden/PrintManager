@@ -30,6 +30,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('interventions', InterventionController::class);
     Route::get('/interventions/statistics', [InterventionController::class, 'getInterventionStatistics']);
     Route::get('/interventions/by-period', [InterventionController::class, 'getInterventionsByPeriod']);
+    // Routes spécifiques pour les interventions
+    Route::get('companies/{companyId}/interventions', [AnalyticsController::class, 'getInterventionsByCompany']);
+    Route::get('printers/{printerId}/interventions', [AnalyticsController::class, 'getInterventionsByPrinter']);
+    Route::get('/printers/search', [AnalyticsController::class, 'search']);
 
     Route::apiResource('companies', CompanyController::class);
     Route::apiResource('departments', DepartmentController::class);

@@ -40,4 +40,17 @@ protected $casts = [
     {
         return $this->belongsTo(User::class, 'technician_id');
     }
+
+    // ...
+public function assignedTo()
+{
+    return $this->belongsTo(User::class, 'technician_id');
+}
+
+public function reportedBy()
+{
+    return $this->belongsTo(User::class, 'client_id');
+}
+// ...
+
 }

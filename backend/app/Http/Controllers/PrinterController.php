@@ -204,4 +204,52 @@ class PrinterController extends Controller
     {
         return Printer::where('department_id', $departmentId)->with(['company', 'department'])->get();
     }
+
+      public function search(Request $request)
+    {
+        // Change ici : récupère ' numero_demande' au lieu de 'serialNumber'
+        $numero_demande = $request->query('numero_demande');
+
+        if (!$numero_demande) {
+            return response()->json(['message' => 'Veuillez fournir un numéro de demande.'], 400);
+        }
+
+        $printer = Printer::with([
+            'company:id,name', // Charge la relation company et sélectionne seulement id et name
+            'interventions' => function ($query) {
+                // Charge les interventions et leurs utilisateurs associés
+                $query->with(['assignedTo:id,name', 'reportedBy:id,name'])
+                      ->orderByDesc('created_at')
+                      ->limit(5); // Limite le nombre d'interventions récentes pour la recherche
+            }
+        ])
+        // Change ici : recherche dans la colonne 'numero_demande'
+        ->where('numero_demande', $numero_demande)
+        ->first(); // Utilise first() car tu t'attends à une seule imprimante par numéro de demande (qui devrait être unique)
+
+        if (!$printer) {
+            return response()->json(['message' => 'Imprimante non trouvée pour ce numéro de demande.'], 404);
+        }
+
+        // Formater la réponse pour qu'elle corresponde à ce que le frontend attend
+        return response()->json([
+            'id' => $printer->id,
+            'model' => $printer->model,
+            'serialNumber' => $printer->serialNumber, // Garde le numéro de série dans la réponse
+            'status' => $printer->status,
+            'location' => $printer->location ?? 'N/A',
+            ' numero_demande' => $printer-> numero_demande, // Ajoute le numéro de demande dans la réponse
+            'companyName' => $printer->company->name ?? 'N/A',
+            'interventions' => $printer->interventions->map(function ($intervention) {
+                return [
+                    'id' => $intervention->id,
+                    'description' => $intervention->description,
+                    'status' => $intervention->status,
+                    'created_at' => $intervention->created_at->format('Y-m-d H:i'),
+                    'assigned_to_user' => $intervention->assignedTo ? ['id' => $intervention->assignedTo->id, 'name' => $intervention->assignedTo->name] : null,
+                    'reported_by_user' => $intervention->reportedBy ? ['id' => $intervention->reportedBy->id, 'name' => $intervention->reportedBy->name] : null,
+                ];
+            }),
+        ]);
+    }
 }

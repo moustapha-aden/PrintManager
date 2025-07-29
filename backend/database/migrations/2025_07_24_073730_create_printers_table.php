@@ -21,6 +21,7 @@ return new class extends Migration
             $table->foreignId('company_id')->constrained('companies'); // ID de la société, clé étrangère
             $table->foreignId('department_id')->constrained('departments'); // ID du département, clé étrangère
             $table->date('installDate')->nullable();
+            $table->dateTime('lastMaintenance')->nullable();
             $table->timestamps(); // created_at et updated_at
         });
     }
