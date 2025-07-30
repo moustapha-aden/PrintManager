@@ -132,55 +132,84 @@ class PrinterController extends Controller
 
     /**
      * Déplace une imprimante vers un nouveau département.
-     */
-    public function move(Request $request, Printer $printer)
+     */ public function move(Request $request, Printer $printer)
     {
-        $request->validate([
+        // 1. Validation des données de la requête
+        $validated = $request->validate([
             'new_department_id' => 'required|exists:departments,id',
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        $oldDepartmentId = $printer->department_id; // Ancien ID du département
+        $oldDepartmentId = $printer->department_id; // Capture l'ancien ID du département
 
-        // Assurez-vous que le nouveau département n'est pas le même que l'ancien
-        if ($oldDepartmentId == $request->new_department_id) {
-            return response()->json(['message' => 'L\'imprimante est déjà dans ce département.'], 400);
+        // 2. Vérifier si l'imprimante est déjà dans ce département
+        if ($oldDepartmentId == $validated['new_department_id']) {
+            return response()->json([
+                'message' => 'L\'imprimante est déjà dans ce département.'
+            ], 409); // 409 Conflict est plus approprié ici
         }
 
-        DB::beginTransaction(); // Démarre une transaction pour garantir l'atomicité
+        DB::beginTransaction(); // Démarre une transaction de base de données
+
         try {
-            // Récupérer le nouveau département pour sa company_id
-            $newDepartment = Department::findOrFail($request->new_department_id);
+            // 3. Récupérer les informations du nouveau département
+            $newDepartment = Department::findOrFail($validated['new_department_id']);
 
-            // 1. Mettre à jour le département et la compagnie de l'imprimante
-            $printer->department_id = $newDepartment->id;
-            $printer->company_id = $newDepartment->company_id; // Mettre à jour la company_id de l'imprimante également
-            $printer->save();
+            // 4. RÉCUPÉRER L'ID DU DÉPARTEMENT "ENTREPÔT" DIRECTEMENT ICI
+            // Assurez-vous que le nom 'Entrepôt' correspond exactement à celui dans votre DB
+            $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
 
-            // 2. Enregistrer le mouvement dans la table printer_movements
+            // Si le département "Entrepôt" n'existe pas, il faut gérer cette erreur
+            if (!$warehouseDepartment) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Le département "Entrepôt" est introuvable. Veuillez le créer ou vérifier son nom.'
+                ], 500); // Erreur interne du serveur
+            }
+
+            // 5. DÉTERMINER LA VALEUR DE 'is_returned_to_warehouse'
+            // Si le nouveau département est l'entrepôt, is_returned_to_warehouse est vrai
+            // Sinon (déplacement vers un département client/autre), il est faux
+            $isReturnedToWarehouse = ($newDepartment->id == $warehouseDepartment->id);
+
+            // 6. Mettre à jour l'imprimante (département, compagnie et statut de retour)
+            $printer->update([
+                'department_id' => $newDepartment->id,
+                'company_id' => $newDepartment->company_id,
+                'is_returned_to_warehouse' => $isReturnedToWarehouse, // <--- C'EST LA LOGIQUE CLÉ
+            ]);
+
+            // 7. Enregistrer le mouvement de l'imprimante
             PrinterMovement::create([
                 'printer_id' => $printer->id,
-                'old_department_id' => $oldDepartmentId,
+                'old_department_id' => $oldDepartmentId, // Utilise l'ancien ID capturé au début
                 'new_department_id' => $newDepartment->id,
-                'moved_by_user_id' => auth()->check() ? auth()->id() : null, // ID de l'utilisateur connecté, si disponible
-                'notes' => $request->notes,
-                'date_mouvement' => now(), // Date du mouvement, par défaut à la date actuelle
+                'moved_by_user_id' => auth()->check() ? auth()->id() : null,
+                'notes' => $validated['notes'],
+                'date_mouvement' => now(),
             ]);
 
             DB::commit(); // Valide la transaction
 
+            // 8. Retourner une réponse de succès avec l'imprimante mise à jour
             return response()->json([
                 'message' => 'Imprimante déplacée avec succès.',
-                'printer' => $printer->load('department.company'), // Recharger les relations pour le frontend
-            ]);
+                'printer' => $printer->load('department.company'), // Recharge les relations pour le frontend
+            ], 200);
 
         } catch (\Exception $e) {
             DB::rollBack(); // Annule la transaction en cas d'erreur
-            Log::error("Erreur lors du déplacement de l'imprimante: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
-            return response()->json(['message' => 'Une erreur est survenue lors du déplacement de l\'imprimante.', 'error' => $e->getMessage()], 500);
+            Log::error("Erreur lors du déplacement de l'imprimante: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'printer_id' => $printer->id,
+                'request_data' => $request->all(),
+            ]);
+            return response()->json([
+                'message' => 'Une erreur est survenue lors du déplacement de l\'imprimante.',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
-
     /**
      * Récupère l'historique des mouvements d'imprimantes.
      */

@@ -23,6 +23,7 @@ class Company extends Model
         'email',
         'contact_person', // Ajouté selon votre migration
         'status',
+        'is_returned_to_warehouse',
     ];
 
     /**

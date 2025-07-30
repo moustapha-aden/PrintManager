@@ -22,6 +22,8 @@ return new class extends Migration
             $table->foreignId('department_id')->constrained('departments'); // ID du département, clé étrangère
             $table->date('installDate')->nullable();
             $table->dateTime('lastMaintenance')->nullable();
+            $table->boolean('is_returned_to_warehouse')->default(false)->comment('Indique si l\'imprimante a été retournée à l\'entrepôt.');
+
             $table->timestamps(); // created_at et updated_at
         });
     }

@@ -21,7 +21,7 @@ class DashboardController extends Controller
     /**
      * Renvoie les statistiques générales pour le tableau de bord administrateur.
      */
-    public function getStats()
+     public function getStats()
     {
         //  UTILISATEURS
         $userCount = User::count();
@@ -41,13 +41,22 @@ class DashboardController extends Controller
         $printersMaintainedCount = Printer::where('status', 'en-maintenance')->count();
         $printersInactiveCount = Printer::where('status', 'inactive')->count();
 
-        // Imprimantes en stock (inactive + entrepôt)
+        // Imprimantes en stock (inactive + entrepôt) - Ancien calcul
         $printersInStockCount = 0;
         if ($warehouseDepartment) {
             $printersInStockCount = Printer::where('department_id', $warehouseDepartment->id)
-                ->where('status', 'inactive')
+                ->where('status', 'inactive') // Cette condition peut être ajustée selon ta définition de "en stock"
                 ->count();
         }
+
+        // NOUVEAU COMPTEUR : Imprimantes retournées à l'entrepôt
+        $returnedToWarehousePrinterCount = 0;
+        if ($warehouseDepartment) {
+            $returnedToWarehousePrinterCount = Printer::where('department_id', $warehouseDepartment->id)
+                ->where('is_returned_to_warehouse', true)
+                ->count();
+        }
+
 
         // Imprimantes non attribuées à un département
         $unassignedPrintersCount = Printer::whereNull('department_id')->count();
@@ -73,6 +82,8 @@ class DashboardController extends Controller
             'hors_service' => $totalPrinterCount ? round(($printersOutOfServiceCount / $totalPrinterCount) * 100, 1) : 0,
             'inactive' => $totalPrinterCount ? round(($printersInactiveCount / $totalPrinterCount) * 100, 1) : 0,
             'in_stock' => $totalPrinterCount ? round(($printersInStockCount / $totalPrinterCount) * 100, 1) : 0,
+            // Ajoute le pourcentage pour les imprimantes retournées à l'entrepôt
+            'returned_to_warehouse' => $totalPrinterCount ? round(($returnedToWarehousePrinterCount / $totalPrinterCount) * 100, 1) : 0,
         ];
 
         return response()->json([
@@ -92,6 +103,7 @@ class DashboardController extends Controller
             'printersInactiveCount' => $printersInactiveCount,
             'printersInStockCount' => $printersInStockCount,
             'unassignedPrintersCount' => $unassignedPrintersCount,
+            'returnedToWarehousePrinterCount' => $returnedToWarehousePrinterCount, // <-- NOUVEAU COMPTEUR ICI
             'printerStatsPercentages' => $printerStatsPercentages,
 
             //  Interventions
@@ -122,26 +134,28 @@ class DashboardController extends Controller
             'En Attente' => $interventions['En Attente'] ?? 0,
             'En Cours' => $interventions['En Cours'] ?? 0,
             'Terminée' => $interventions['Terminée'] ?? 0,
-            'Annulée' => $interventions['Annulee'] ?? 0,
+            'Annulée' => $interventions['Annulee'] ?? 0, // Correction de la clé 'Annulee'
         ];
 
         // Récupérer les 5 dernières activités (interventions) pour ce technicien
         $recentActivities = Intervention::with('printer') // Assurez-vous que la relation 'printer' existe
-                                        ->where('technician_id', $technicianId)
-                                        ->orderByDesc('created_at')
-                                        ->take(5)
-                                        ->get()
-                                        ->map(function ($intervention) {
-                                            $printerInfo = $intervention->printer
-                                                ? " - {$intervention->printer->brand} {$intervention->printer->model}"
-                                                : '';
-                                            return [
-                                                'id' => $intervention->id,
-                                                'date' => $intervention->created_at->format('d/m/Y H:i'),
-                                                'description' => "Intervention #{$intervention->id}: {$intervention->intervention_type}{$printerInfo}",
-                                                'status' => $intervention->status,
-                                            ];
-                                        });
+                                         ->where('technician_id', $technicianId)
+                                         ->orderByDesc('created_at')
+                                         ->take(5)
+                                         ->get()
+                                         ->map(function ($intervention) {
+                                             $printerInfo = $intervention->printer
+                                                 ? " - {$intervention->printer->brand} {$intervention->printer->model}"
+                                                 : '';
+                                             return [
+                                                 'id' => $intervention->id,
+                                                 'date' => $intervention->created_at->format('d/m/Y H:i'),
+                                                 'description' => "Intervention #{$intervention->id}: {$intervention->intervention_type}{$printerInfo}",
+                                                 'status' => $intervention->status,
+                                                 'assigned_to_user' => $intervention->assignedTo ? ['id' => $intervention->assignedTo->id, 'name' => $intervention->assignedTo->name] : null,
+                                                 'reported_by_user' => $intervention->reportedBy ? ['id' => $intervention->reportedBy->id, 'name' => $intervention->reportedBy->name] : null,
+                                             ];
+                                         });
 
         return response()->json([
             'interventionsCount' => $interventionsCount,
@@ -171,5 +185,5 @@ class DashboardController extends Controller
             });
 
         return response()->json($recentActivities);
-    }
+        }
 }
