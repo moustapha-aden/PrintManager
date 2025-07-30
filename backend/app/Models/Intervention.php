@@ -3,6 +3,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Intervention extends Model
 {
@@ -21,6 +22,7 @@ class Intervention extends Model
         'solution',
         'intervention_type',
         'date_previsionnelle',
+        'image_path',
     ];
 protected $casts = [
         'start_date' => 'datetime', // Convertira automatiquement en Carbon et gérera le format
@@ -52,5 +54,8 @@ public function reportedBy()
     return $this->belongsTo(User::class, 'client_id');
 }
 // ...
-
+public function getPhotoUrlAttribute()
+    {
+        return $this->photo_path ? Storage::url($this->photo_path) : null;
+    }
 }

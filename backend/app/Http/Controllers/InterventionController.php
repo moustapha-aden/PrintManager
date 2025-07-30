@@ -115,32 +115,34 @@ class InterventionController extends Controller
     /**
      * Crée une nouvelle intervention.
      */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'numero_demande' => 'required|string|unique:interventions,numero_demande|max:255', // Validation for auto-generated code
-            'start_date' => 'required|date',
-            // 'end_date' => 'nullable|date|after_or_equal:start_date', // Added end_date to store validation
-            'client_id' => 'nullable|exists:users,id',
-            'technician_id' => 'nullable|exists:users,id',
-            'printer_id' => 'required|exists:printers,id',
-            'status' => 'required|in:En Attente,En Cours,Terminée,Annulée', // Updated allowed statuses
-            'description' => 'nullable|string|max:1000', // Added description validation
-            'priority' => 'required|in:Haute,Moyenne,Basse',
-            'intervention_type' => 'required|string|max:255',
-            // 'notes' => 'nullable|string|max:1000', // Added notes validation
-        ]);
+public function store(Request $request)
+{
+    $validated = $request->validate([
+        'numero_demande' => 'required|string|unique:interventions,numero_demande|max:255',
+        'start_date' => 'required|date',
+        // 'end_date' => 'nullable|date|after_or_equal:start_date',
+        'client_id' => 'nullable|exists:users,id',
+        'technician_id' => 'nullable|exists:users,id',
+        'printer_id' => 'required|exists:printers,id',
+        'status' => 'required|in:En Attente,En Cours,Terminée,Annulée',
+        'description' => 'nullable|string|max:1000',
+        'priority' => 'required|in:Haute,Moyenne,Basse',
+        'intervention_type' => 'required|string|max:255',
+        'image_path' => 'nullable|string|max:2048',
+        // 'notes' => 'nullable|string|max:1000',
+    ]);
 
-        // No need for hardcoded technician_id = 5 if frontend sends it or it's nullable
-        // If you want to assign a default technician when none is provided, do it here:
-        if (empty($validated['technician_id'])) {
-            $validated['technician_id'] = 5; // Or some other default logic
-        }
-
-        $intervention = Intervention::create($validated);
-
-        return response()->json($intervention, 201);
+    if (empty($validated['technician_id'])) {
+        $validated['technician_id'] = 5; // ID par défaut
     }
+
+    // Crée d’abord l’intervention
+    $intervention = Intervention::create($validated);
+
+    // Le fait de retourner $intervention en JSON inclura automatiquement 'image_path'
+    return response()->json($intervention, 201);
+    }
+
 
     /**
      * Met à jour une intervention existante.
