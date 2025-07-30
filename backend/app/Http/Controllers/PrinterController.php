@@ -2,48 +2,97 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Department;
 use App\Models\Printer;
+use App\Models\Department;
 use App\Models\PrinterMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\Rule; // Importez la classe Rule pour les validations "in"
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class PrinterController extends Controller
 {
     /**
-     * Affiche la liste des imprimantes avec relations, et filtres optionnels.
+     * Display a listing of the resource.
+     * Gère le filtrage par statut, compagnie, département, non attribuées, en stock et retournées entrepôt.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
     {
         $query = Printer::query();
 
-        // Charger les relations nécessaires
+        // Charger les relations nécessaires pour l'affichage
         $query->with(['company', 'department', 'interventions', 'interventions.technician']);
 
-        // NOUVEAU: Filtrer par company_id (utile pour les clients liés à une entreprise)
-        if ($request->has('company_id')) {
-            $query->where('company_id', $request->input('company_id'));
+        // Récupérer l'ID du département "Entrepôt" une seule fois
+        $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
+        $warehouseDepartmentId = $warehouseDepartment ? $warehouseDepartment->id : null;
+
+        // Prioriser les filtres spécifiques basés sur des requêtes dérivées
+        if ($request->has('unassigned') && filter_var($request->input('unassigned'), FILTER_VALIDATE_BOOLEAN)) {
+            $query->whereNull('company_id')->whereNull('department_id');
+        } elseif ($request->has('returned_to_warehouse_filter') && filter_var($request->input('returned_to_warehouse_filter'), FILTER_VALIDATE_BOOLEAN)) {
+            // Filtrer spécifiquement par la colonne is_returned_to_warehouse
+            $query->where('is_returned_to_warehouse', true);
+        } elseif ($request->has('in_stock_filter') && filter_var($request->input('in_stock_filter'), FILTER_VALIDATE_BOOLEAN)) {
+            // Filtrer spécifiquement pour les imprimantes en stock (inactives et à l'entrepôt)
+            if ($warehouseDepartmentId) {
+                $query->where('department_id', $warehouseDepartmentId)
+                      ->where('status', 'inactive'); // Ou le statut que vous utilisez pour "en stock"
+            } else {
+                // Si le département Entrepôt n'existe pas, retourner un tableau vide ou gérer l'erreur
+                Log::warning("Demande de filtre 'en_stock' mais le département 'Entrepôt' est introuvable.");
+                return response()->json([]); // Retourne un tableau vide si l'entrepôt n'existe pas
+            }
+        } else {
+            // Appliquer les filtres généraux si les filtres spécifiques ne sont pas actifs
+            if ($request->has('status') && $request->input('status') !== 'all') {
+                $query->where('status', $request->input('status'));
+            }
+
+            if ($request->has('company_id') && $request->input('company_id') !== 'all') {
+                $query->where('company_id', $request->input('company_id'));
+            }
+
+            if ($request->has('department_id') && $request->input('department_id') !== 'all') {
+                $query->where('department_id', $request->input('department_id'));
+            }
         }
 
-        // NOUVEAU: Filtrer par department_id (utile pour les clients ou pour affiner)
-        if ($request->has('department_id')) {
-            $query->where('department_id', $request->input('department_id'));
+        // Logique de recherche (si elle est gérée par le même endpoint)
+        if ($request->has('search_term') && !empty($request->input('search_term'))) {
+            $searchTerm = $request->input('search_term');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('model', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('brand', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('serial', 'like', '%' . $searchTerm . '%')
+                  ->orWhereHas('company', function ($q2) use ($searchTerm) {
+                      $q2->where('name', 'like', '%' . $searchTerm . '%');
+                  })
+                  ->orWhereHas('department', function ($q2) use ($searchTerm) {
+                      $q2->where('name', 'like', '%' . $searchTerm . '%');
+                  });
+            });
         }
 
-        // NOUVEAU: Filtrer par statut (par exemple, pour afficher les imprimantes "en panne" pour un technicien)
-        if ($request->has('status')) {
-            $query->where('status', $request->input('status'));
-        }
+        $printers = $query->get();
 
-        // Ajoutez d'autres filtres si nécessaire (ex: par marque, modèle, etc.)
+        // Ajouter un champ 'statusDisplay' pour le frontend
+        $printers->each(function ($printer) {
+            $printer->statusDisplay = $this->getStatusDisplay($printer->status);
+        });
 
-        return $query->get();
+        return response()->json($printers);
     }
 
     /**
      * Affiche une seule imprimante avec ses relations.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\JsonResponse
      */
     public function show($id)
     {
@@ -52,6 +101,9 @@ class PrinterController extends Controller
 
     /**
      * Enregistre une nouvelle imprimante.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request)
     {
@@ -59,19 +111,26 @@ class PrinterController extends Controller
             'model' => 'required|string|max:255',
             'brand' => 'required|string|max:255',
             'serial' => 'required|string|max:255|unique:printers',
-            // NOUVEAU: Validation 'in' pour le statut
-            'status' => ['required', 'string', Rule::in(['active', 'inactive', 'En maintenance', 'hors-service'])],
-            'company_id' => 'required|exists:companies,id',
-            'department_id' => 'required|exists:departments,id',
+            // Statuts directs valides dans la colonne 'status'
+            'status' => ['required', 'string', Rule::in(['active', 'inactive', 'maintenance', 'hors-service'])],
+            'company_id' => 'nullable|exists:companies,id',
+            'department_id' => 'nullable|exists:departments,id',
             'installDate' => 'sometimes|date',
+            'is_returned_to_warehouse' => 'boolean', // Assurez-vous que cette colonne existe et est gérée
         ]);
 
-        // Supprimez cette ligne si statusDisplay n'est pas une colonne de DB
-        // Si c'est une colonne de DB, assurez-vous que la valeur est correctement assignée ou traduite si besoin
-         $validated['statusDisplay'] = $validated['status'] ?? ucfirst($validated['status']);
-        // Si statusDisplay est une colonne en DB, il vaut mieux le laisser au frontend gérer l'affichage ou utiliser un mutator Laravel.
-        // Si vous voulez juste stocker le même statut que 'status', alors :
-        // $validated['statusDisplay'] = $validated['status']; // Si statusDisplay est une colonne distincte
+        // Logique pour s'assurer que company_id et department_id sont null si l'imprimante est à l'entrepôt
+        // ou si elle est marquée comme retournée (si 'returned_to_warehouse' n'est pas un statut direct)
+        $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
+        if ($warehouseDepartment && $validated['department_id'] == $warehouseDepartment->id) {
+             $validated['company_id'] = null; // Une imprimante à l'entrepôt n'est pas associée à une compagnie
+        }
+
+        // Si l'imprimante est créée avec un statut qui implique un retour entrepôt, mettez à jour le flag
+        if ($request->has('is_returned_to_warehouse')) {
+             $validated['is_returned_to_warehouse'] = filter_var($request->input('is_returned_to_warehouse'), FILTER_VALIDATE_BOOLEAN);
+        }
+
 
         $printer = Printer::create($validated);
 
@@ -80,6 +139,10 @@ class PrinterController extends Controller
 
     /**
      * Met à jour une imprimante existante.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\JsonResponse
      */
     public function update(Request $request, $id)
     {
@@ -94,19 +157,28 @@ class PrinterController extends Controller
                 'max:255',
                 Rule::unique('printers')->ignore($printer->id),
             ],
-            // NOUVEAU: Validation 'sometimes|in' pour le statut
-            'status' => ['sometimes', 'string', Rule::in(['active', 'inactive', 'En maintenance', 'hors-service'])],
-            // Si statusDisplay est une colonne en DB et doit être mise à jour
-            'statusDisplay' => 'sometimes|string|max:255',
-            'company_id' => 'sometimes|exists:companies,id',
-            'department_id' => 'sometimes|exists:departments,id',
+            // Statuts directs valides dans la colonne 'status'
+            'status' => ['sometimes', 'string', Rule::in(['active', 'inactive', 'maintenance', 'hors-service'])],
+            'company_id' => 'nullable|exists:companies,id',
+            'department_id' => 'nullable|exists:departments,id',
             'installDate' => 'sometimes|date',
+            'is_returned_to_warehouse' => 'sometimes|boolean',
         ]);
 
-        // Si statusDisplay est une colonne de DB et doit être mise à jour avec la valeur de 'status'
-        if (isset($validated['status'])) {
-            $validated['statusDisplay'] = $validated['status'];
+        // Logique pour gérer les IDs de compagnie/département en fonction du département
+        // Si le nouveau département est l'entrepôt, la compagnie doit être null
+        if (isset($validated['department_id'])) {
+            $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
+            if ($warehouseDepartment && $validated['department_id'] == $warehouseDepartment->id) {
+                $validated['company_id'] = null;
+            }
         }
+
+        // Mettre à jour le flag is_returned_to_warehouse si fourni
+        if ($request->has('is_returned_to_warehouse')) {
+             $validated['is_returned_to_warehouse'] = filter_var($request->input('is_returned_to_warehouse'), FILTER_VALIDATE_BOOLEAN);
+        }
+
 
         $printer->update($validated);
 
@@ -115,14 +187,16 @@ class PrinterController extends Controller
 
     /**
      * Supprime une imprimante.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\JsonResponse
      */
     public function destroy($id)
     {
         $printer = Printer::findOrFail($id);
 
-        // Vérifiez si l'imprimante a des interventions associées avant de supprimer
         if ($printer->interventions()->exists()) {
-            return response()->json(['message' => 'Impossible de supprimer cette imprimante car elle a des interventions associées.'], 409); // Conflit
+            return response()->json(['message' => 'Impossible de supprimer cette imprimante car elle a des interventions associées.'], 409);
         }
 
         $printer->delete();
@@ -132,73 +206,88 @@ class PrinterController extends Controller
 
     /**
      * Déplace une imprimante vers un nouveau département.
-     */ public function move(Request $request, Printer $printer)
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Printer  $printer
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function move(Request $request, Printer $printer)
     {
-        // 1. Validation des données de la requête
         $validated = $request->validate([
             'new_department_id' => 'required|exists:departments,id',
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        $oldDepartmentId = $printer->department_id; // Capture l'ancien ID du département
+        $oldDepartmentId = $printer->department_id;
+        $oldCompanyId = $printer->company_id;
 
-        // 2. Vérifier si l'imprimante est déjà dans ce département
         if ($oldDepartmentId == $validated['new_department_id']) {
             return response()->json([
                 'message' => 'L\'imprimante est déjà dans ce département.'
-            ], 409); // 409 Conflict est plus approprié ici
+            ], 409);
         }
 
-        DB::beginTransaction(); // Démarre une transaction de base de données
+        DB::beginTransaction();
 
         try {
-            // 3. Récupérer les informations du nouveau département
             $newDepartment = Department::findOrFail($validated['new_department_id']);
+            $newCompanyId = $newDepartment->company_id;
 
-            // 4. RÉCUPÉRER L'ID DU DÉPARTEMENT "ENTREPÔT" DIRECTEMENT ICI
-            // Assurez-vous que le nom 'Entrepôt' correspond exactement à celui dans votre DB
+            // Déterminer le statut de l'imprimante après le mouvement
+            $newStatus = $printer->status; // Conserver le statut actuel par défaut
+            $isReturnedToWarehouse = false;
+
             $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
 
-            // Si le département "Entrepôt" n'existe pas, il faut gérer cette erreur
             if (!$warehouseDepartment) {
                 DB::rollBack();
                 return response()->json([
                     'message' => 'Le département "Entrepôt" est introuvable. Veuillez le créer ou vérifier son nom.'
-                ], 500); // Erreur interne du serveur
+                ], 500);
             }
 
-            // 5. DÉTERMINER LA VALEUR DE 'is_returned_to_warehouse'
-            // Si le nouveau département est l'entrepôt, is_returned_to_warehouse est vrai
-            // Sinon (déplacement vers un département client/autre), il est faux
-            $isReturnedToWarehouse = ($newDepartment->id == $warehouseDepartment->id);
+            if ($newDepartment->id == $warehouseDepartment->id) {
+                // Si déplacé vers l'entrepôt, marquer comme retourné et potentiellement inactif
+                $isReturnedToWarehouse = true;
+                $newCompanyId = null; // Une imprimante à l'entrepôt n'est pas associée à une compagnie
+                // Si l'imprimante était active, elle pourrait devenir inactive en entrepôt
+                if ($newStatus === 'active') {
+                    $newStatus = 'inactive';
+                }
+            } else {
+                // Si déplacé hors de l'entrepôt vers un département client
+                $isReturnedToWarehouse = false;
+                // Si elle était inactive ou retournée entrepôt, elle redevient active
+                if ($newStatus === 'inactive' || $printer->is_returned_to_warehouse) {
+                    $newStatus = 'active';
+                }
+            }
 
-            // 6. Mettre à jour l'imprimante (département, compagnie et statut de retour)
             $printer->update([
                 'department_id' => $newDepartment->id,
-                'company_id' => $newDepartment->company_id,
-                'is_returned_to_warehouse' => $isReturnedToWarehouse, // <--- C'EST LA LOGIQUE CLÉ
+                'company_id' => $newCompanyId,
+                'is_returned_to_warehouse' => $isReturnedToWarehouse,
+                'status' => $newStatus, // Mise à jour du statut de l'imprimante
             ]);
 
-            // 7. Enregistrer le mouvement de l'imprimante
             PrinterMovement::create([
                 'printer_id' => $printer->id,
-                'old_department_id' => $oldDepartmentId, // Utilise l'ancien ID capturé au début
+                'old_department_id' => $oldDepartmentId,
                 'new_department_id' => $newDepartment->id,
                 'moved_by_user_id' => auth()->check() ? auth()->id() : null,
                 'notes' => $validated['notes'],
                 'date_mouvement' => now(),
             ]);
 
-            DB::commit(); // Valide la transaction
+            DB::commit();
 
-            // 8. Retourner une réponse de succès avec l'imprimante mise à jour
             return response()->json([
                 'message' => 'Imprimante déplacée avec succès.',
-                'printer' => $printer->load('department.company'), // Recharge les relations pour le frontend
+                'printer' => $printer->load(['department', 'company']),
             ], 200);
 
         } catch (\Exception $e) {
-            DB::rollBack(); // Annule la transaction en cas d'erreur
+            DB::rollBack();
             Log::error("Erreur lors du déplacement de l'imprimante: " . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
                 'printer_id' => $printer->id,
@@ -210,33 +299,68 @@ class PrinterController extends Controller
             ], 500);
         }
     }
+
     /**
      * Récupère l'historique des mouvements d'imprimantes.
+     *
+     * @return \Illuminate\Http\JsonResponse
      */
     public function getPrinterMovements()
     {
         return PrinterMovement::with([
             'printer',
-            'oldDepartment.company', // Charger la société de l'ancien département
-            'newDepartment.company', // Charger la société du nouveau département
+            'oldDepartment.company',
+            'newDepartment.company',
             'movedBy'
         ])
-        ->orderByDesc('created_at') // Ordonner du plus récent au plus ancien
+        ->orderByDesc('created_at')
         ->get();
     }
 
     /**
-     * Récupère les imprimantes par département.
-     * Peut être utile pour le client ou pour des vues filtrées.
+     * Récupère les compteurs d'imprimantes non attribuées, en stock et retournées à l'entrepôt.
+     * Cette méthode est appelée par la route /api/printers/counts
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function printersByDepartment($departmentId)
+    public function getPrinterCounts(Request $request)
     {
-        return Printer::where('department_id', $departmentId)->with(['company', 'department'])->get();
+        $unassignedCount = Printer::whereNull('company_id')
+                                  ->whereNull('department_id')
+                                  ->count();
+
+        // Récupérer l'ID du département "Entrepôt" pour le calcul "en stock"
+        $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
+        $warehouseDepartmentId = $warehouseDepartment ? $warehouseDepartment->id : null;
+
+        $inStockCount = 0;
+        if ($warehouseDepartmentId) {
+            // "En stock" est défini comme étant dans le département "Entrepôt" ET ayant le statut 'inactive'
+            $inStockCount = Printer::where('department_id', $warehouseDepartmentId)
+                                   ->where('status', 'inactive')
+                                   ->count();
+        }
+
+        // CORRIGÉ : Compter les imprimantes retournées en utilisant la colonne 'is_returned_to_warehouse'
+        $returnedToWarehouseCount = Printer::where('is_returned_to_warehouse', true)->count();
+
+        return response()->json([
+            'unassigned_count' => $unassignedCount,
+            'returned_count' => $returnedToWarehouseCount,
+            'in_stock_count' => $inStockCount,
+        ]);
     }
 
-      public function search(Request $request)
+
+    /**
+     * Recherche une imprimante par numéro de demande.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function search(Request $request)
     {
-        // Change ici : récupère ' numero_demande' au lieu de 'serialNumber'
         $numero_demande = $request->query('numero_demande');
 
         if (!$numero_demande) {
@@ -244,30 +368,27 @@ class PrinterController extends Controller
         }
 
         $printer = Printer::with([
-            'company:id,name', // Charge la relation company et sélectionne seulement id et name
+            'company:id,name',
             'interventions' => function ($query) {
-                // Charge les interventions et leurs utilisateurs associés
                 $query->with(['assignedTo:id,name', 'reportedBy:id,name'])
                       ->orderByDesc('created_at')
-                      ->limit(5); // Limite le nombre d'interventions récentes pour la recherche
+                      ->limit(5);
             }
         ])
-        // Change ici : recherche dans la colonne 'numero_demande'
         ->where('numero_demande', $numero_demande)
-        ->first(); // Utilise first() car tu t'attends à une seule imprimante par numéro de demande (qui devrait être unique)
+        ->first();
 
         if (!$printer) {
             return response()->json(['message' => 'Imprimante non trouvée pour ce numéro de demande.'], 404);
         }
 
-        // Formater la réponse pour qu'elle corresponde à ce que le frontend attend
         return response()->json([
             'id' => $printer->id,
             'model' => $printer->model,
-            'serialNumber' => $printer->serialNumber, // Garde le numéro de série dans la réponse
+            'serialNumber' => $printer->serial,
             'status' => $printer->status,
             'location' => $printer->location ?? 'N/A',
-            ' numero_demande' => $printer-> numero_demande, // Ajoute le numéro de demande dans la réponse
+            'numero_demande' => $printer->numero_demande,
             'companyName' => $printer->company->name ?? 'N/A',
             'interventions' => $printer->interventions->map(function ($intervention) {
                 return [
@@ -280,5 +401,22 @@ class PrinterController extends Controller
                 ];
             }),
         ]);
+    }
+
+    /**
+     * Helper function to get display status.
+     * Cette fonction ne doit gérer que les valeurs directes de la colonne 'status'.
+     *
+     * @param  string  $status
+     * @return string
+     */
+    private function getStatusDisplay($status) {
+        switch ($status) {
+            case 'active': return 'Active';
+            case 'maintenance': return 'En maintenance';
+            case 'hors-service': return 'Hors service';
+            case 'inactive': return 'Inactive';
+            default: return ucfirst($status);
+        }
     }
 }

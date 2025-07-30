@@ -38,7 +38,7 @@ class DashboardController extends Controller
         $totalPrinterCount = Printer::count();
         $activePrinterCount = Printer::where('status', 'active')->count();
         $printersOutOfServiceCount = Printer::where('status', 'hors-service')->count();
-        $printersMaintainedCount = Printer::where('status', 'en-maintenance')->count();
+        $printersMaintainedCount = Printer::where('status', 'maintenance')->count();
         $printersInactiveCount = Printer::where('status', 'inactive')->count();
 
         // Imprimantes en stock (inactive + entrepôt) - Ancien calcul
@@ -73,7 +73,7 @@ class DashboardController extends Controller
             'Terminee' => $interventionsStatusCounts['Terminée'] ?? 0,
             'En Attente' => $interventionsStatusCounts['En Attente'] ?? 0,
             'En Cours' => $interventionsStatusCounts['En Cours'] ?? 0,
-            'Annulee' => $interventionsStatusCounts['Annulee'] ?? 0,
+            'Annulee' => $interventionsStatusCounts['Annulée'] ?? 0,
         ];
 
         //  POURCENTAGES (Exemple : % imprimantes actives sur le total)

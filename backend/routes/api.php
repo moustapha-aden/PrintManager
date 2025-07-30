@@ -33,7 +33,7 @@ Route::get('/storage/{filename}', function ($filename) {
 
     if (!Storage::exists($path)) {
         // Log l'erreur ou la requête pour le débogage si un 404 persiste
-        \Log::warning("Fichier non trouvé pour la route /api/storage/: " . $path);
+        Log::warning("Fichier non trouvé pour la route /api/storage/: " . $path);
         abort(404, 'Fichier non trouvé.');
     }
     return response()->file(Storage::path($path));
@@ -45,14 +45,23 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Ressources principales
     Route::apiResource('users', UserController::class);
+
+    // Routes pour les imprimantes
+    // La méthode 'index' du PrinterController doit être capable de gérer les filtres
+    // passés via les paramètres de requête (ex: ?status=active&company_id=1&unassigned=true)
     Route::apiResource('printers', PrinterController::class);
+
+    // NOUVEAU: Route pour récupérer les compteurs spécifiques d'imprimantes
+    // Utile pour afficher les chiffres sur les boutons "Non Attribuées" et "Retournées Entrepôt"
+    Route::get('/printers/counts', [PrinterController::class, 'getPrinterCounts']); // <-- Ajout de cette route
+
     Route::apiResource('interventions', InterventionController::class);
     Route::get('/interventions/statistics', [InterventionController::class, 'getInterventionStatistics']);
     Route::get('/interventions/by-period', [InterventionController::class, 'getInterventionsByPeriod']);
     // Routes spécifiques pour les interventions
     Route::get('companies/{companyId}/interventions', [AnalyticsController::class, 'getInterventionsByCompany']);
     Route::get('printers/{printerId}/interventions', [AnalyticsController::class, 'getInterventionsByPrinter']);
-    Route::get('/printers/search', [AnalyticsController::class, 'search']);
+    Route::get('/printers/search', [AnalyticsController::class, 'search']); // Note: cette route peut être redondante si PrinterController@index gère la recherche/filtrage
 
     Route::apiResource('companies', CompanyController::class);
     Route::apiResource('departments', DepartmentController::class);

@@ -5,13 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Intervention;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage; // Importez le facade Storage
-use Illuminate\Support\Str; // Gardé au cas où vous en auriez besoin pour d'autres fonctionnalités (UUID, etc.)
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB; // Importez le facade DB
 
 class InterventionController extends Controller
 {
     /**
      * Liste toutes les interventions avec relations, avec filtres optionnels.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
     {
@@ -94,11 +99,14 @@ class InterventionController extends Controller
         // Optionnel: Ajouter un orderBy par défaut si non spécifié
         $query->orderByDesc('created_at');
 
-        return $query->get();
+        return response()->json($query->get());
     }
 
     /**
      * Affiche une intervention précise avec relations.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\JsonResponse
      */
     public function show($id)
     {
@@ -115,6 +123,9 @@ class InterventionController extends Controller
 
     /**
      * Crée une nouvelle intervention.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request)
     {
@@ -124,75 +135,74 @@ class InterventionController extends Controller
             'client_id' => 'nullable|exists:users,id',
             'technician_id' => 'nullable|exists:users,id',
             'printer_id' => 'required|exists:printers,id',
-            'status' => 'required|in:En Attente,En Cours,Terminée,Annulée',
+            // Statuts avec accent pour la cohérence DB/API
+            'status' => ['required', 'string', Rule::in(['En Attente', 'En Cours', 'Terminée', 'Annulée'])],
             'description' => 'nullable|string|max:1000',
-            'priority' => 'required|in:Haute,Moyenne,Basse',
+            // Priorités sans accent pour la cohérence DB/API (ajout de 'Faible' et 'Urgent' si elles existent dans votre DB)
+            'priority' => ['required', 'string', Rule::in(['Haute', 'Moyenne', 'Basse', 'Faible', 'Urgent'])],
             'intervention_type' => 'required|string|max:255',
-            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048', // Validation pour l'image
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'date_previsionnelle' => 'nullable|date|after_or_equal:start_date',
             'solution' => 'nullable|string|max:1000',
         ]);
 
         if (empty($validated['technician_id'])) {
-            $validated['technician_id'] = 5; // ID par défaut
+            $validated['technician_id'] = 5;
         }
 
         $intervention = new Intervention($validated);
 
-        // Gérer l'upload de la photo
         if ($request->hasFile('photo')) {
             $path = $request->file('photo')->store('public/interventions_photos');
-            // Sauvegarde le chemin d'accès relatif à 'storage/app/public/'
-            // Pour que cela corresponde à votre route /storage/interventions_photos/...
             $intervention->image_path = str_replace('public/', '', $path);
         }
 
         $intervention->save();
 
-        // Retourne l'intervention avec les relations chargées
         return response()->json($intervention->load(['client', 'technician', 'printer']), 201);
     }
 
     /**
      * Met à jour une intervention existante.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\JsonResponse
      */
     public function update(Request $request, $id)
     {
         $intervention = Intervention::findOrFail($id);
 
         $validated = $request->validate([
-            'numero_demande' => 'sometimes|string|max:255|unique:interventions,numero_demande,' . $id, // Permet la mise à jour du numero_demande si unique et si ce n'est pas le sien
+            'numero_demande' => ['sometimes', 'string', 'max:255', Rule::unique('interventions', 'numero_demande')->ignore($id)],
             'start_date' => 'sometimes|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'client_id' => 'nullable|exists:users,id',
             'technician_id' => 'nullable|exists:users,id',
             'printer_id' => 'sometimes|exists:printers,id',
-            'status' => 'sometimes|in:En Attente,En Cours,Terminée,Annulée',
+            // Statuts avec accent pour la cohérence DB/API
+            'status' => ['sometimes', 'string', Rule::in(['En Attente', 'En Cours', 'Terminée', 'Annulée'])],
             'description' => 'nullable|string|max:1000',
-            'priority' => 'sometimes|in:Haute,Moyenne,Basse',
+            // Priorités sans accent pour la cohérence DB/API (ajout de 'Faible' et 'Urgent' si elles existent dans votre DB)
+            'priority' => ['sometimes', 'string', Rule::in(['Haute', 'Moyenne', 'Basse', 'Faible', 'Urgent'])],
             'notes' => 'nullable|string|max:1000',
             'intervention_type' => 'sometimes|string|max:255',
             'solution' => 'nullable|string|max:1000',
             'date_previsionnelle' => 'nullable|date|after_or_equal:start_date',
-            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048', // Permet la mise à jour de la photo
-            'delete_photo' => 'sometimes|boolean', // Permet de supprimer la photo existante
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'delete_photo' => 'sometimes|boolean',
         ]);
 
-        // Gérer la suppression de la photo existante
         if ($request->boolean('delete_photo') && $intervention->image_path) {
-            // Le chemin stocké est 'interventions_photos/nom.jpg'
-            // Pour supprimer, il faut le préfixer avec 'public/'
             $fullPathToDelete = 'public/' . $intervention->image_path;
             if (Storage::exists($fullPathToDelete)) {
                 Storage::delete($fullPathToDelete);
             }
-            $intervention->image_path = null; // Supprimer le chemin de la base de données
+            $intervention->image_path = null;
         }
 
-        // Gérer l'upload de la nouvelle photo si présente
         if ($request->hasFile('photo')) {
-            // Supprimer l'ancienne photo si elle existe avant d'en stocker une nouvelle
             if ($intervention->image_path) {
                 $fullPathToDelete = 'public/' . $intervention->image_path;
                 if (Storage::exists($fullPathToDelete)) {
@@ -203,7 +213,6 @@ class InterventionController extends Controller
             $intervention->image_path = str_replace('public/', '', $path);
         }
 
-        // Utiliser fill pour les champs validés et ensuite sauvegarder
         $intervention->fill($validated);
         $intervention->save();
 
@@ -212,12 +221,14 @@ class InterventionController extends Controller
 
     /**
      * Supprime une intervention.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\JsonResponse
      */
     public function destroy($id)
     {
         $intervention = Intervention::findOrFail($id);
 
-        // Supprimer la photo associée si elle existe
         if ($intervention->image_path) {
             $photoPath = 'public/' . $intervention->image_path;
             if (Storage::exists($photoPath)) {
@@ -228,5 +239,70 @@ class InterventionController extends Controller
         $intervention->delete();
 
         return response()->json(['message' => 'Intervention supprimée avec succès.']);
+    }
+
+    /**
+     * Récupère les statistiques d'interventions par statut.
+     * Utile pour les tableaux de bord.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getInterventionStatistics()
+    {
+        $totalInterventionCount = Intervention::count();
+
+        $interventionsStatusCounts = Intervention::select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        // Assurez-vous que les clés de retour correspondent à ce que le frontend attend (sans accent si nécessaire)
+        // et que les valeurs proviennent des clés de la DB (avec accent).
+        $interventionsStatus = [
+            'Terminee' => $interventionsStatusCounts['Terminée'] ?? 0,
+            'En Attente' => $interventionsStatusCounts['En Attente'] ?? 0,
+            'En Cours' => $interventionsStatusCounts['En Cours'] ?? 0,
+            'Annulee' => $interventionsStatusCounts['Annulée'] ?? 0,
+        ];
+
+        return response()->json([
+            'total' => $totalInterventionCount,
+            'Terminee' => $interventionsStatus['Terminee'],
+            'En Attente' => $interventionsStatus['En Attente'],
+            'En Cours' => $interventionsStatus['En Cours'],
+            'Annulee' => $interventionsStatus['Annulee'],
+        ]);
+    }
+
+    /**
+     * Récupère les interventions par période (ex: jour, semaine, mois).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getInterventionsByPeriod(Request $request)
+    {
+        $period = $request->query('period', 'day'); // 'day', 'week', 'month', 'year'
+        $query = Intervention::query();
+
+        switch ($period) {
+            case 'day':
+                $query->whereDate('created_at', now()->toDateString());
+                break;
+            case 'week':
+                $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
+                break;
+            case 'month':
+                $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
+                break;
+            case 'year':
+                $query->whereYear('created_at', now()->year);
+                break;
+            default:
+                // Pas de filtre par période si la période n'est pas reconnue
+                break;
+        }
+
+        return response()->json($query->get());
     }
 }
