@@ -8,7 +8,9 @@ use App\Models\Department;
 use App\Models\Intervention;
 use App\Models\Printer;
 use App\Models\User;
+use Carbon\Carbon; // Import Carbon for date calculations
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -134,8 +136,12 @@ class DashboardController extends Controller
             'En Attente' => $interventions['En Attente'] ?? 0,
             'En Cours' => $interventions['En Cours'] ?? 0,
             'Terminée' => $interventions['Terminée'] ?? 0,
-            'Annulée' => $interventions['Annulee'] ?? 0, // Correction de la clé 'Annulee'
+            'Annulée' => $interventions['Annulée'] ?? 0, // Correction de la clé 'Annulee' en 'Annulée' pour correspondre au frontend
         ];
+
+        // NOUVEAU : Calcul du nombre d'interventions terminées par ce technicien
+        $completedByTechnicianCount = Intervention::where('technician_id', $technicianId)
+                                                  ->count();
 
         // Récupérer les 5 dernières activités (interventions) pour ce technicien
         $recentActivities = Intervention::with('printer') // Assurez-vous que la relation 'printer' existe
@@ -159,6 +165,105 @@ class DashboardController extends Controller
 
         return response()->json([
             'interventionsCount' => $interventionsCount,
+            'completedByTechnicianCount' => $completedByTechnicianCount, // Ajout de la nouvelle donnée ici
+            'recentActivities' => $recentActivities,
+        ]);
+    }
+
+    /**
+     * Récupère les statistiques spécifiques à un client.
+     */
+    public function getClientDashboardStats(Request $request)
+    {
+        $clientId = $request->query('client_id');
+
+        if (!$clientId) {
+            return response()->json(['message' => 'L\'ID du client est requis.'], 400);
+        }
+
+        $clientUser = User::with('department')->find($clientId);
+
+        if (!$clientUser || $clientUser->role !== 'client') { // Assurez-vous que l'utilisateur est bien un client
+            return response()->json(['message' => 'Client non trouvé ou rôle invalide.'], 404);
+        }
+
+        $currentUserDepartmentId = $clientUser->department_id;
+
+        // 1. Nombre d'imprimantes dans le département du client
+        $myPrintersCount = 0;
+        if ($currentUserDepartmentId) {
+            $myPrintersCount = Printer::where('department_id', $currentUserDepartmentId)->count();
+        }
+
+        // 2. Compteurs d'interventions par statut pour les demandes du client
+        $interventionsByClientQuery = Intervention::where('client_id', $clientId); // Assurez-vous que 'reported_by_user_id' est la colonne correcte
+
+        $interventionsStatusCounts = (clone $interventionsByClientQuery)
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        $myInterventionsStatus = [
+            'En Attente' => $interventionsStatusCounts['En Attente'] ?? 0,
+            'En Cours' => $interventionsStatusCounts['En Cours'] ?? 0,
+            'Terminée' => $interventionsStatusCounts['Terminée'] ?? 0,
+            'Annulée' => $interventionsStatusCounts['Annulée'] ?? 0,
+        ];
+
+        // 3. Délai moyen de résolution pour les interventions du client
+        $resolvedInterventionsWithDates = (clone $interventionsByClientQuery)
+            ->where('status', 'Terminée')
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date');
+
+        $averageResolutionTime = 'N/A';
+        if ($resolvedInterventionsWithDates->count() > 0) {
+            $totalDurationInSeconds = 0;
+            foreach ($resolvedInterventionsWithDates->get() as $intervention) {
+                $start = Carbon::parse($intervention->start_date);
+                $end = Carbon::parse($intervention->end_date);
+                $totalDurationInSeconds += $end->diffInSeconds($start);
+            }
+
+            $averageDurationInSeconds = $totalDurationInSeconds / $resolvedInterventionsWithDates->count();
+
+            // Convert seconds to a human-readable format
+            $dt = Carbon::now()->addSeconds($averageDurationInSeconds);
+            $base = Carbon::now();
+
+            $days = $base->diffInDays($dt);
+            $hours = $base->addDays($days)->diffInHours($dt);
+            $minutes = $base->addHours($hours)->diffInMinutes($dt);
+
+            $averageResolutionTime = '';
+            if ($days > 0) $averageResolutionTime .= "{$days}j ";
+            if ($hours > 0) $averageResolutionTime .= "{$hours}h ";
+            if ($minutes > 0 || ($days === 0 && $hours === 0)) $averageResolutionTime .= "{$minutes}min";
+            $averageResolutionTime = trim($averageResolutionTime);
+        }
+
+        // 4. Activités récentes pour le client
+        $recentActivities = (clone $interventionsByClientQuery)
+            ->with('printer')
+            ->orderByDesc('created_at')
+            ->take(5)
+            ->get()
+            ->map(function ($intervention) {
+                return [
+                    'id' => $intervention->id,
+                    'date' => Date::createFromFormat('Y-m-d H:i:s', $intervention->created_at)->format('d/m/Y H:i'),
+                    'description' => 'Demande #' . $intervention->id . ' - ' . ($intervention->printer->brand ?? '') . ' ' . ($intervention->printer->model ?? ''),
+                    'status' => $intervention->status,
+                ];
+            });
+
+
+        return response()->json([
+            'myPrintersCount' => $myPrintersCount,
+            'myInterventionsCount' => $interventionsByClientQuery->count(), // Total des interventions du client
+            'myInterventionsStatus' => $myInterventionsStatus, // Détail par statut
+            'averageResolutionTime' => $averageResolutionTime,
             'recentActivities' => $recentActivities,
         ]);
     }

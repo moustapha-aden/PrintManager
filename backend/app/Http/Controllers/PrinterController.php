@@ -167,16 +167,16 @@ class PrinterController extends Controller
 
         // Logique pour gérer les IDs de compagnie/département en fonction du département
         // Si le nouveau département est l'entrepôt, la compagnie doit être null
-        if (isset($validated['department_id'])) {
-            $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
-            if ($warehouseDepartment && $validated['department_id'] == $warehouseDepartment->id) {
-                $validated['company_id'] = null;
-            }
-        }
+        // if (isset($validated['department_id'])) {
+        //     $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
+        //     if ($warehouseDepartment && $validated['department_id'] == $warehouseDepartment->id) {
+        //         $validated['company_id'] = null;
+        //     }
+        // }
 
         // Mettre à jour le flag is_returned_to_warehouse si fourni
         if ($request->has('is_returned_to_warehouse')) {
-             $validated['is_returned_to_warehouse'] = filter_var($request->input('is_returned_to_warehouse'), FILTER_VALIDATE_BOOLEAN);
+            $validated['is_returned_to_warehouse'] = filter_var($request->input('is_returned_to_warehouse'), FILTER_VALIDATE_BOOLEAN);
         }
 
 

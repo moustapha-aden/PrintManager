@@ -15,14 +15,19 @@ use Illuminate\Validation\Rule;
 class AnalyticsController extends Controller
 {
     /**
-     * Helper to apply period filtering to a query.
+     * Helper to apply period, company, and department filtering to a query.
+     *
      * @param \Illuminate\Database\Eloquent\Builder $query
-     * @param string $period ('Semaine', 'Mois', 'Année', 'Total')
+     * @param \Illuminate\Http\Request $request
      * @param string $dateColumn The column to filter by (default: 'created_at')
      * @return \Illuminate\Database\Eloquent\Builder
      */
-    protected function applyPeriodFilter($query, $period, $dateColumn = 'created_at')
+    protected function applyFilters($query, Request $request, $dateColumn = 'created_at')
     {
+        $period = $request->query('period', 'Mois');
+        $companyId = $request->query('company_id');
+        $departmentId = $request->query('department_id');
+
         $now = Carbon::now();
         switch ($period) {
             case 'Semaine':
@@ -38,6 +43,25 @@ class AnalyticsController extends Controller
             default:
                 break;
         }
+
+        // Apply company filter if provided and not 'all'
+        if ($companyId && $companyId !== 'all') {
+            // Assumes the query is on Interventions or a model related to Printer
+            // and Printer has a company_id. Adjust if your relationship is different.
+            $query->whereHas('printer', function ($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            });
+        }
+
+        // Apply department filter if provided and not 'all'
+        if ($departmentId && $departmentId !== 'all') {
+            // Assumes the query is on Interventions or a model related to Printer
+            // and Printer has a department_id. Adjust if your relationship is different.
+            $query->whereHas('printer', function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId);
+            });
+        }
+
         return $query;
     }
 
@@ -46,34 +70,66 @@ class AnalyticsController extends Controller
      */
     public function getOverviewStats(Request $request)
     {
-        // Validate the 'period' parameter
         $request->validate([
             'period' => ['sometimes', 'string', Rule::in(['Semaine', 'Mois', 'Année', 'Total'])],
+            'company_id' => 'sometimes|nullable|exists:companies,id',
+            'department_id' => 'sometimes|nullable|exists:departments,id',
         ]);
 
-        $period = $request->query('period', 'Mois');
-
         $totalInterventionsQuery = Intervention::query();
-        $totalInterventionsQuery = $this->applyPeriodFilter($totalInterventionsQuery, $period);
+        $totalInterventionsQuery = $this->applyFilters($totalInterventionsQuery, $request);
         $totalInterventions = $totalInterventionsQuery->count();
 
-        // Ensure status matches your DB values, typically 'Terminée' or 'Résolue'
-        $resolvedInterventionsQuery = Intervention::where('status', 'Terminée'); // Or 'Résolue'
-        $resolvedInterventionsQuery = $this->applyPeriodFilter($resolvedInterventionsQuery, $period);
+        $resolvedInterventionsQuery = Intervention::where('status', 'Terminée');
+        $resolvedInterventionsQuery = $this->applyFilters($resolvedInterventionsQuery, $request);
         $resolvedInterventions = $resolvedInterventionsQuery->count();
 
-        // Ensure status matches your DB values
-        $pendingInterventionsQuery = Intervention::whereIn('status', ['En cours', 'En attente']);
-        $pendingInterventionsQuery = $this->applyPeriodFilter($pendingInterventionsQuery, $period);
+        $pendingInterventionsQuery = Intervention::whereIn('status', ['En Cours', 'En Attente']);
+        $pendingInterventionsQuery = $this->applyFilters($pendingInterventionsQuery, $request);
         $pendingInterventions = $pendingInterventionsQuery->count();
 
         $resolutionRate = $totalInterventions > 0 ? ($resolvedInterventions / $totalInterventions) * 100 : 0;
+
+        // Calculate Average Resolution Time
+        $resolvedInterventionsWithDates = Intervention::where('status', 'Terminée')
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date');
+        $resolvedInterventionsWithDates = $this->applyFilters($resolvedInterventionsWithDates, $request);
+
+        $averageResolutionTime = 'N/A';
+        if ($resolvedInterventionsWithDates->count() > 0) {
+            $totalDurationInSeconds = 0;
+            foreach ($resolvedInterventionsWithDates->get() as $intervention) {
+                $start = Carbon::parse($intervention->start_date);
+                $end = Carbon::parse($intervention->end_date);
+                $totalDurationInSeconds += $end->diffInSeconds($start);
+            }
+
+            $averageDurationInSeconds = $totalDurationInSeconds / $resolvedInterventionsWithDates->count();
+
+            // Convert seconds to a human-readable format (e.g., days, hours, minutes)
+            $dt = Carbon::now()->addSeconds($averageDurationInSeconds);
+            $base = Carbon::now();
+
+            $days = $base->diffInDays($dt);
+            $hours = $base->addDays($days)->diffInHours($dt);
+            $minutes = $base->addHours($hours)->diffInMinutes($dt);
+
+            $averageResolutionTime = '';
+            if ($days > 0) $averageResolutionTime .= "{$days}j ";
+            if ($hours > 0) $averageResolutionTime .= "{$hours}h ";
+            if ($minutes > 0 || ($days === 0 && $hours === 0)) $averageResolutionTime .= "{$minutes}min"; // Always show minutes if no days/hours
+
+            $averageResolutionTime = trim($averageResolutionTime);
+        }
+
 
         return response()->json([
             'totalInterventions' => $totalInterventions,
             'resolvedInterventions' => $resolvedInterventions,
             'pendingInterventions' => $pendingInterventions,
             'resolutionRate' => round($resolutionRate, 2),
+            'averageResolutionTime' => $averageResolutionTime, // New KPI
         ]);
     }
 
@@ -84,35 +140,48 @@ class AnalyticsController extends Controller
     {
         $request->validate([
             'period' => ['sometimes', 'string', Rule::in(['Semaine', 'Mois', 'Année', 'Total'])],
+            'company_id' => 'sometimes|nullable|exists:companies,id',
+            'department_id' => 'sometimes|nullable|exists:departments,id',
         ]);
 
-        $period = $request->query('period', 'Mois');
+        $companies = Company::query();
 
-        // Eager load printers count for each company
-        // You might want to filter companies based on whether they have printers with interventions in the period
-        $companies = Company::withCount(['printers' => function ($query) {
-            $query->has('interventions'); // Only count printers that have at least one intervention
-        }])
-        ->get();
+        // Apply company filter to the companies list itself if a specific company is requested
+        if ($request->query('company_id') && $request->query('company_id') !== 'all') {
+            $companies->where('id', $request->query('company_id'));
+        }
 
-        $companyStats = $companies->map(function ($company) use ($period) {
-            // Count interventions for printers belonging to this company, filtered by period
-            $interventionsQuery = Intervention::whereHas('printer', function ($query) use ($company) {
+        $companies = $companies->get();
+
+        $companyStats = $companies->map(function ($company) use ($request) {
+            // Count interventions for printers belonging to this company, filtered by period and department
+            $interventionsQuery = Intervention::whereHas('printer', function ($query) use ($company, $request) {
                 $query->where('company_id', $company->id);
+                // Apply department filter here if present
+                if ($request->query('department_id') && $request->query('department_id') !== 'all') {
+                    $query->where('department_id', $request->query('department_id'));
+                }
             });
-            $interventionsQuery = $this->applyPeriodFilter($interventionsQuery, $period);
+            $interventionsQuery = $this->applyFilters($interventionsQuery, $request); // Apply period filter
             $totalInterventions = $interventionsQuery->count();
 
+            // Count printers for this company, potentially filtered by department
+            $printerCountQuery = Printer::where('company_id', $company->id);
+            if ($request->query('department_id') && $request->query('department_id') !== 'all') {
+                $printerCountQuery->where('department_id', $request->query('department_id'));
+            }
+            $printerCount = $printerCountQuery->count();
+
+
             $avgFailuresPerPrinter = 0;
-            // Use $company->printers_count (from withCount) which is the count of printers associated with the company
-            if ($company->printers_count > 0) {
-                $avgFailuresPerPrinter = round($totalInterventions / $company->printers_count, 2);
+            if ($printerCount > 0) {
+                $avgFailuresPerPrinter = round($totalInterventions / $printerCount, 2);
             }
 
             return [
                 'id' => $company->id,
                 'name' => $company->name,
-                'printerCount' => $company->printers_count, // Count of printers (that have interventions if filtered by has('interventions'))
+                'printerCount' => $printerCount,
                 'avgFailuresPerPrinter' => $avgFailuresPerPrinter,
             ];
         });
@@ -129,14 +198,13 @@ class AnalyticsController extends Controller
     {
         $request->validate([
             'period' => ['sometimes', 'string', Rule::in(['Semaine', 'Mois', 'Année', 'Total'])],
+            'company_id' => 'sometimes|nullable|exists:companies,id',
+            'department_id' => 'sometimes|nullable|exists:departments,id',
         ]);
 
-        $period = $request->query('period', 'Mois');
-
         $frequentErrorsQuery = Intervention::query();
-        $frequentErrorsQuery = $this->applyPeriodFilter($frequentErrorsQuery, $period);
+        $frequentErrorsQuery = $this->applyFilters($frequentErrorsQuery, $request);
 
-        // Ensure 'intervention_type' column exists in your 'interventions' table
         $frequentErrors = $frequentErrorsQuery
             ->select('intervention_type', DB::raw('count(*) as count'))
             ->whereNotNull('intervention_type')
@@ -155,15 +223,23 @@ class AnalyticsController extends Controller
     {
         $request->validate([
             'period' => ['sometimes', 'string', Rule::in(['Semaine', 'Mois', 'Année', 'Total'])],
+            'company_id' => 'sometimes|nullable|exists:companies,id',
+            'department_id' => 'sometimes|nullable|exists:departments,id',
         ]);
 
-        $period = $request->query('period', 'Mois');
-
-        $printersAttentionQuery = Printer::with(['company', 'department']) // Add 'department' relation
-            ->withCount(['interventions' => function ($query) use ($period) {
-                // Count interventions for each printer, filtered by period
-                $this->applyPeriodFilter($query, $period);
+        $printersAttentionQuery = Printer::with(['company', 'department'])
+            ->withCount(['interventions' => function ($query) use ($request) {
+                // Count interventions for each printer, filtered by period, company, and department
+                $this->applyFilters($query, $request);
             }]);
+
+        // Apply company and department filters directly to the Printer query if present
+        if ($request->query('company_id') && $request->query('company_id') !== 'all') {
+            $printersAttentionQuery->where('company_id', $request->query('company_id'));
+        }
+        if ($request->query('department_id') && $request->query('department_id') !== 'all') {
+            $printersAttentionQuery->where('department_id', $request->query('department_id'));
+        }
 
         $printers = $printersAttentionQuery
             ->orderByDesc('interventions_count')
@@ -178,7 +254,7 @@ class AnalyticsController extends Controller
                 'id' => $printer->id,
                 'model' => $printer->model,
                 'serialNumber' => $printer->serial, // Assuming 'serial' column
-                'numero_demande' => $printer->numero_demande ?? 'N/A', // Make sure this column exists in your Printer model/table
+                // 'numero_demande' is an intervention attribute, not a printer attribute
                 'company_id' => $printer->company_id, // Add company_id for frontend filtering
                 'companyName' => $printer->company->name ?? 'N/A',
                 'department_id' => $printer->department_id, // Add department_id for frontend filtering
@@ -192,6 +268,73 @@ class AnalyticsController extends Controller
 
         return response()->json($attentionPrinters);
     }
+
+    /**
+     * Get interventions grouped by type over time for a histogram.
+     */
+    public function getInterventionsByTypeOverTime(Request $request)
+    {
+        $request->validate([
+            'period' => ['sometimes', 'string', Rule::in(['Semaine', 'Mois', 'Année', 'Total'])],
+            'company_id' => 'sometimes|nullable|exists:companies,id',
+            'department_id' => 'sometimes|nullable|exists:departments,id',
+        ]);
+
+        $query = Intervention::query();
+        $query = $this->applyFilters($query, $request);
+
+        $dateFormat = '%Y-%m'; // Default to year-month for monthly grouping
+        $periodNameAlias = 'period_name';
+        $groupByColumn = 'created_at'; // Column to group by for date functions
+
+        switch ($request->query('period')) {
+            case 'Semaine':
+                $dateFormat = '%Y-%W'; // Year-week
+                break;
+            case 'Année':
+                $dateFormat = '%Y'; // Year
+                break;
+            case 'Total':
+                $dateFormat = null; // No date grouping for total
+                $periodNameAlias = 'name'; // Use 'name' directly for the single 'Total' entry
+                break;
+        }
+
+        $selectPeriodColumn = $dateFormat ? DB::raw('DATE_FORMAT(' . $groupByColumn . ', "' . $dateFormat . '") as ' . $periodNameAlias) : DB::raw('\'Total\' as name');
+        $groupByPeriodColumn = $dateFormat ? DB::raw('DATE_FORMAT(' . $groupByColumn . ', "' . $dateFormat . '")') : DB::raw('\'Total\'');
+
+
+        $rawInterventionsData = $query
+            ->select(
+                $selectPeriodColumn,
+                'intervention_type',
+                DB::raw('count(*) as count')
+            )
+            ->whereNotNull('intervention_type')
+            ->groupBy($groupByPeriodColumn, 'intervention_type') // Group by both period and type
+            ->orderBy($periodNameAlias === 'name' ? 'name' : 'period_name') // Order by the alias
+            ->get();
+
+        // Reformat data for Recharts histogram
+        $formattedData = [];
+        // Use the correct alias for period names
+        $periods = $rawInterventionsData->pluck($periodNameAlias)->unique()->sort()->values();
+        $allInterventionTypes = $rawInterventionsData->pluck('intervention_type')->unique()->values();
+
+        foreach ($periods as $periodName) {
+            $entry = ['name' => $periodName];
+            foreach ($allInterventionTypes as $type) {
+                $entry[$type] = 0; // Initialize type counts
+            }
+            $rawInterventionsData->where($periodNameAlias, $periodName)->each(function ($item) use (&$entry) {
+                $entry[$item->intervention_type] = $item->count;
+            });
+            $formattedData[] = $entry;
+        }
+
+        return response()->json($formattedData);
+    }
+
 
     /**
      * List historical reports (dummy data for now).
@@ -230,32 +373,45 @@ class AnalyticsController extends Controller
     /**
      * Search for a printer by request number (as requested by frontend).
      */
-    public function search(Request $request) // Renamed from searchPrinterBySerialNumber to be more generic 'search' for the route /api/printers/search
+    public function search(Request $request)
     {
         $request->validate([
-            'numero_demande' => 'required_without:serialNumber|string|max:255', // Accepts numero_demande or serialNumber
+            'numero_demande' => 'required_without:serialNumber|string|max:255',
             'serialNumber' => 'required_without:numero_demande|string|max:255',
         ]);
 
         $numero_demande = $request->query('numero_demande');
         $serialNumber = $request->query('serialNumber');
 
-        $printerQuery = Printer::with(['company', 'department', 'interventions' => function($query) {
-            $query->with(['assignedTo:id,name', 'reportedBy:id,name'])
-                  ->latest('created_at')
-                  ->limit(5); // Get last 5 interventions for this printer, with user details
-        }]);
+        $printer = null;
 
         if ($numero_demande) {
-            $printerQuery->where('numero_demande', $numero_demande); // Assuming 'numero_demande' column
+            // Search for an intervention by numero_demande and get its associated printer
+            $intervention = Intervention::where('numero_demande', $numero_demande)
+                                    ->with(['printer.company', 'printer.department', 'printer.interventions' => function($query) {
+                                        // Get recent interventions for this printer
+                                        $query->latest('created_at')->limit(5);
+                                    }])
+                                    ->first();
+            if ($intervention && $intervention->printer) {
+                $printer = $intervention->printer;
+                // Add the specific intervention that was searched for to the printer's interventions if not already there
+                // Ensure 'numero_demande' is included in the intervention data
+                $intervention->load(['assignedTo:id,name', 'reportedBy:id,name']); // Load users for this specific intervention
+                $printer->interventions->prepend($intervention);
+                $printer->interventions = $printer->interventions->unique('id')->take(5);
+            }
         } elseif ($serialNumber) {
-            $printerQuery->where('serial', $serialNumber); // Assuming 'serial' column
+            // Search for a printer by serial number directly
+            $printer = Printer::where('serial', $serialNumber)
+                                ->with(['company', 'department', 'interventions' => function($query) {
+                                    // Get recent interventions for this printer
+                                    $query->latest('created_at')->limit(5);
+                                }])
+                                ->first();
         } else {
              return response()->json(['message' => 'Veuillez fournir un numéro de demande ou un numéro de série.'], 400);
         }
-
-        $printer = $printerQuery->first();
-
 
         if (!$printer) {
             return response()->json(['message' => 'Aucune imprimante trouvée pour les critères fournis.'], 404);
@@ -265,7 +421,6 @@ class AnalyticsController extends Controller
             'id' => $printer->id,
             'model' => $printer->model,
             'serialNumber' => $printer->serial,
-            'numero_demande' => $printer->numero_demande ?? 'N/A', // Ensure this column is available
             'companyName' => $printer->company->name ?? 'N/A',
             'departmentName' => $printer->department->name ?? 'N/A',
             'status' => $printer->status,
@@ -275,8 +430,9 @@ class AnalyticsController extends Controller
                     'id' => $intervention->id,
                     'description' => $intervention->description,
                     'status' => $intervention->status,
-                    'intervention_type' => $intervention->intervention_type, // Ensure this column exists
+                    'intervention_type' => $intervention->intervention_type,
                     'created_at' => $intervention->created_at->format('Y-m-d H:i'),
+                    'numero_demande' => $intervention->numero_demande, // This is the intervention's numero_demande
                     'assigned_to_user' => $intervention->assignedTo ? ['id' => $intervention->assignedTo->id, 'name' => $intervention->assignedTo->name] : null,
                     'reported_by_user' => $intervention->reportedBy ? ['id' => $intervention->reportedBy->id, 'name' => $intervention->reportedBy->name] : null,
                 ];
@@ -293,7 +449,12 @@ class AnalyticsController extends Controller
         $interventions = Intervention::whereHas('printer', function ($query) use ($companyId) {
             $query->where('company_id', $companyId);
         })
-        ->with(['printer:id,model,serial,numero_demande,department_id', 'printer.department:id,name', 'assignedTo:id,name', 'reportedBy:id,name'])
+        ->with([
+            'printer:id,model,serial,department_id', // Removed numero_demande
+            'printer.department:id,name',
+            'assignedTo:id,name',
+            'reportedBy:id,name'
+        ])
         ->orderByDesc('created_at')
         ->get()
         ->map(function ($intervention) {
@@ -303,12 +464,12 @@ class AnalyticsController extends Controller
                 'status' => $intervention->status,
                 'intervention_type' => $intervention->intervention_type,
                 'created_at' => $intervention->created_at->format('Y-m-d H:i'),
+                'numero_demande' => $intervention->numero_demande, // numero_demande is on intervention
                 'printer' => [
                     'id' => $intervention->printer->id,
                     'model' => $intervention->printer->model,
                     'serial' => $intervention->printer->serial,
-                    'numero_demande' => $intervention->printer->numero_demande ?? 'N/A', // Include numero_demande
-                    'departmentName' => $intervention->printer->department->name ?? 'N/A', // Include department name
+                    'departmentName' => $intervention->printer->department->name ?? 'N/A',
                 ],
                 'assigned_to_user' => $intervention->assignedTo ? ['id' => $intervention->assignedTo->id, 'name' => $intervention->assignedTo->name] : null,
                 'reported_by_user' => $intervention->reportedBy ? ['id' => $intervention->reportedBy->id, 'name' => $intervention->reportedBy->name] : null,
@@ -325,7 +486,13 @@ class AnalyticsController extends Controller
     public function getInterventionsByPrinter(int $printerId)
     {
         $interventions = Intervention::where('printer_id', $printerId)
-            ->with(['assignedTo:id,name', 'reportedBy:id,name', 'printer:id,company_id,department_id,model,serial,numero_demande', 'printer.company:id,name', 'printer.department:id,name']) // Load company/department details from printer relation
+            ->with([
+                'assignedTo:id,name',
+                'reportedBy:id,name',
+                'printer:id,company_id,department_id,model,serial', // Removed numero_demande
+                'printer.company:id,name',
+                'printer.department:id,name'
+            ])
             ->orderByDesc('created_at')
             ->get()
             ->map(function ($intervention) {
@@ -335,11 +502,11 @@ class AnalyticsController extends Controller
                     'status' => $intervention->status,
                     'intervention_type' => $intervention->intervention_type,
                     'created_at' => $intervention->created_at->format('Y-m-d H:i'),
+                    'numero_demande' => $intervention->numero_demande, // numero_demande is on intervention
                     'printer' => [ // Add printer details to the intervention response
                         'id' => $intervention->printer->id,
                         'model' => $intervention->printer->model,
                         'serial' => $intervention->printer->serial,
-                        'numero_demande' => $intervention->printer->numero_demande ?? 'N/A',
                         'companyName' => $intervention->printer->company->name ?? 'N/A',
                         'departmentName' => $intervention->printer->department->name ?? 'N/A',
                     ],

@@ -41,8 +41,8 @@ class InterventionController extends Controller
             } elseif ($user->role === 'technicien') {
                 // Un technicien voit ses interventions assignées OU les interventions en statut 'En Attente'
                 $query->where(function($q) use ($user) {
-                    $q->where('technician_id', $user->id)
-                      ->orWhere('status', 'En Attente'); // Un technicien peut aussi voir les nouvelles demandes
+                    $q->where('technician_id', $user->id);
+                    //   ->orWhere('status', 'En Attente'); // Un technicien peut aussi voir les nouvelles demandes
                 });
             }
             // Les administrateurs voient toutes les interventions par défaut

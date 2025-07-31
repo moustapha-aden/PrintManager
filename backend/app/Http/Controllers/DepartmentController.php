@@ -9,8 +9,10 @@ class DepartmentController extends Controller
 {
     public function index(Request $request)
     {
-
         $query = Department::query();
+
+        // Eager load the 'company' relationship
+        $query->with('company');
 
         // Si company_id est présent dans la requête, filtrer les départements par cette company_id
         if ($request->has('company_id')) {
@@ -18,12 +20,11 @@ class DepartmentController extends Controller
         }
 
         return $query->get();
-
     }
 
     public function show($id)
     {
-        return Department::with('company')->findOrFail($id);
+        return Department::with(['company', 'interventions', 'interventions.technician'])->findOrFail($id);
     }
 
     public function store(Request $request)

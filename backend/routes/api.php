@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Ressources principales
     Route::apiResource('users', UserController::class);
+    // Dans routes/api.php, à l'intérieur du middleware 'auth:sanctum'
 
     // Routes pour les imprimantes
     // La méthode 'index' du PrinterController doit être capable de gérer les filtres
@@ -66,6 +67,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('companies', CompanyController::class);
     Route::apiResource('departments', DepartmentController::class);
     Route::apiResource('analyse', AnalyticsController::class); // si tu veux la garder
+    Route::get('/analytics/interventions-by-type-over-time', [AnalyticsController::class, 'getInterventionsByTypeOverTime']);
+    Route::get('/analytics/interventions-by-type-over-time', [AnalyticsController::class, 'getInterventionsByTypeOverTime']);
     Route::put('/printers/{printer}/move', [PrinterController::class, 'move'])->name('printers.move');
     Route::get('/printer-movements', [PrinterController::class, 'getPrinterMovements'])->name('printer_movements.index');
     // Dashboard
@@ -73,6 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
     Route::get('/dashboard/recent-activities', [DashboardController::class, 'getRecentActivities']);
     Route::get('/dashboard/technician-stats', [DashboardController::class, 'getTechnicianStats']);
+    Route::get('/dashboard/client-stats', [DashboardController::class, 'getClientDashboardStats']);
 
     Route::put('/users/{user}/change-password', [UserController::class, 'changePassword']);
     // Analytics spécifiques

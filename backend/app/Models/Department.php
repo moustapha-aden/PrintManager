@@ -25,4 +25,15 @@ class Department extends Model
     {
         return $this->hasMany(Printer::class);
     }
+
+    // Un département a plusieurs interventions (Interventions)
+    public function interventions()
+    {
+        return $this->hasMany(Intervention::class);
+    }
+    // Un département a plusieurs utilisateurs (Users)
+    public function users()
+    {
+        return $this->hasMany(User::class);
+    }
 }
