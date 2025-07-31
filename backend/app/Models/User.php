@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Intervention;
+use App\Notifications\CustomResetPasswordNotification;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,6 +13,19 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
+
+    /**
+     * Send the password reset notification.
+     *
+     * @param  string  $token
+     * @return void
+     */
+    public function sendPasswordResetNotification($token)
+    {
+        // Utilisez votre notification personnalisée ici
+        $this->notify(new CustomResetPasswordNotification($token));
+    }
+
     use HasApiTokens, HasFactory, Notifiable;
     protected $fillable = [
         'name',
