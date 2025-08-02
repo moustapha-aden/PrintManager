@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Intervention;
 use App\Models\Printer;
 use App\Models\Company;
-use App\Models\Department; // N'oubliez pas d'importer le modèle Department
+use App\Models\Department;
 use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 
@@ -284,15 +284,15 @@ class AnalyticsController extends Controller
         $query = $this->applyFilters($query, $request);
 
         $dateFormat = '%Y-%m'; // Default to year-month for monthly grouping
-        $periodNameAlias = 'period_name';
+        $periodNameAlias = 'period_name'; // Default alias for date periods
         $groupByColumn = 'created_at'; // Column to group by for date functions
 
         switch ($request->query('period')) {
             case 'Semaine':
-                $dateFormat = '%Y-%W'; // Year-week
+                $dateFormat = '%Y-%W'; // Year-week (e.g., 2025-01, 2025-02)
                 break;
             case 'Année':
-                $dateFormat = '%Y'; // Year
+                $dateFormat = '%Y'; // Year (e.g., 2025)
                 break;
             case 'Total':
                 $dateFormat = null; // No date grouping for total
@@ -300,9 +300,9 @@ class AnalyticsController extends Controller
                 break;
         }
 
-        $selectPeriodColumn = $dateFormat ? DB::raw('DATE_FORMAT(' . $groupByColumn . ', "' . $dateFormat . '") as ' . $periodNameAlias) : DB::raw('\'Total\' as name');
+        // Construct the select and group by clauses dynamically
+        $selectPeriodColumn = $dateFormat ? DB::raw('DATE_FORMAT(' . $groupByColumn . ', "' . $dateFormat . '") as ' . $periodNameAlias) : DB::raw('\'Total\' as ' . $periodNameAlias);
         $groupByPeriodColumn = $dateFormat ? DB::raw('DATE_FORMAT(' . $groupByColumn . ', "' . $dateFormat . '")') : DB::raw('\'Total\'');
-
 
         $rawInterventionsData = $query
             ->select(
@@ -312,7 +312,8 @@ class AnalyticsController extends Controller
             )
             ->whereNotNull('intervention_type')
             ->groupBy($groupByPeriodColumn, 'intervention_type') // Group by both period and type
-            ->orderBy($periodNameAlias === 'name' ? 'name' : 'period_name') // Order by the alias
+            // Order by the alias used in select, which is always $periodNameAlias
+            ->orderBy($periodNameAlias)
             ->get();
 
         // Reformat data for Recharts histogram
@@ -373,72 +374,7 @@ class AnalyticsController extends Controller
     /**
      * Search for a printer by request number (as requested by frontend).
      */
-    public function search(Request $request)
-    {
-        $request->validate([
-            'numero_demande' => 'required_without:serialNumber|string|max:255',
-            'serialNumber' => 'required_without:numero_demande|string|max:255',
-        ]);
 
-        $numero_demande = $request->query('numero_demande');
-        $serialNumber = $request->query('serialNumber');
-
-        $printer = null;
-
-        if ($numero_demande) {
-            // Search for an intervention by numero_demande and get its associated printer
-            $intervention = Intervention::where('numero_demande', $numero_demande)
-                                    ->with(['printer.company', 'printer.department', 'printer.interventions' => function($query) {
-                                        // Get recent interventions for this printer
-                                        $query->latest('created_at')->limit(5);
-                                    }])
-                                    ->first();
-            if ($intervention && $intervention->printer) {
-                $printer = $intervention->printer;
-                // Add the specific intervention that was searched for to the printer's interventions if not already there
-                // Ensure 'numero_demande' is included in the intervention data
-                $intervention->load(['assignedTo:id,name', 'reportedBy:id,name']); // Load users for this specific intervention
-                $printer->interventions->prepend($intervention);
-                $printer->interventions = $printer->interventions->unique('id')->take(5);
-            }
-        } elseif ($serialNumber) {
-            // Search for a printer by serial number directly
-            $printer = Printer::where('serial', $serialNumber)
-                                ->with(['company', 'department', 'interventions' => function($query) {
-                                    // Get recent interventions for this printer
-                                    $query->latest('created_at')->limit(5);
-                                }])
-                                ->first();
-        } else {
-             return response()->json(['message' => 'Veuillez fournir un numéro de demande ou un numéro de série.'], 400);
-        }
-
-        if (!$printer) {
-            return response()->json(['message' => 'Aucune imprimante trouvée pour les critères fournis.'], 404);
-        }
-
-        return response()->json([
-            'id' => $printer->id,
-            'model' => $printer->model,
-            'serialNumber' => $printer->serial,
-            'companyName' => $printer->company->name ?? 'N/A',
-            'departmentName' => $printer->department->name ?? 'N/A',
-            'status' => $printer->status,
-            'location' => $printer->location ?? 'N/A',
-            'interventions' => $printer->interventions->map(function ($intervention) {
-                return [
-                    'id' => $intervention->id,
-                    'description' => $intervention->description,
-                    'status' => $intervention->status,
-                    'intervention_type' => $intervention->intervention_type,
-                    'created_at' => $intervention->created_at->format('Y-m-d H:i'),
-                    'numero_demande' => $intervention->numero_demande, // This is the intervention's numero_demande
-                    'assigned_to_user' => $intervention->assignedTo ? ['id' => $intervention->assignedTo->id, 'name' => $intervention->assignedTo->name] : null,
-                    'reported_by_user' => $intervention->reportedBy ? ['id' => $intervention->reportedBy->id, 'name' => $intervention->reportedBy->name] : null,
-                ];
-            }),
-        ]);
-    }
 
     /**
      * Get all interventions for a specific company.

@@ -68,7 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Routes spécifiques pour les interventions
     Route::get('companies/{companyId}/interventions', [AnalyticsController::class, 'getInterventionsByCompany']);
     Route::get('printers/{printerId}/interventions', [AnalyticsController::class, 'getInterventionsByPrinter']);
-    Route::get('/printers/search', [AnalyticsController::class, 'search']); // Note: cette route peut être redondante si PrinterController@index gère la recherche/filtrage
+    Route::get('/printers/search', [PrinterController::class, 'search']);
 
     Route::apiResource('companies', CompanyController::class);
     Route::apiResource('departments', DepartmentController::class);
@@ -92,6 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('frequent-errors', [AnalyticsController::class, 'getFrequentErrors']);
         Route::get('printers-attention', [AnalyticsController::class, 'getPrintersNeedingAttention']);
     });
+
 
     // Rapports
     Route::prefix('reports')->group(function () {

@@ -176,7 +176,7 @@ class PrinterController extends Controller
 
         // Mettre à jour le flag is_returned_to_warehouse si fourni
         if ($request->has('is_returned_to_warehouse')) {
-            $validated['is_returned_to_warehouse'] = filter_var($request->input('is_returned_to_warehouse'), FILTER_VALIDATE_BOOLEAN);
+             $validated['is_returned_to_warehouse'] = filter_var($request->input('is_returned_to_warehouse'), FILTER_VALIDATE_BOOLEAN);
         }
 
 
