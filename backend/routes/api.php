@@ -53,14 +53,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // Ressources principales
     Route::apiResource('users', UserController::class);
 
+      // NOUVEAU: Route pour récupérer les compteurs spécifiques d'imprimantes
+    // Utile pour afficher les chiffres sur les boutons "Non Attribuées" et "Retournées Entrepôt"
+    Route::get('/printers/counts', [PrinterController::class, 'getPrinterCounts']);
     // Routes pour les imprimantes
     // La méthode 'index' du PrinterController doit être capable de gérer les filtres
     // passés via les paramètres de requête (ex: ?status=active&company_id=1&unassigned=true)
     Route::apiResource('printers', PrinterController::class);
 
-    // NOUVEAU: Route pour récupérer les compteurs spécifiques d'imprimantes
-    // Utile pour afficher les chiffres sur les boutons "Non Attribuées" et "Retournées Entrepôt"
-    Route::get('/printers/counts', [PrinterController::class, 'getPrinterCounts']);
+
 
     Route::apiResource('interventions', InterventionController::class);
     Route::get('/interventions/statistics', [InterventionController::class, 'getInterventionStatistics']);
@@ -75,6 +76,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('analyse', AnalyticsController::class); // si tu veux la garder
     // Route pour les interventions par type et période (maintenue une seule fois)
     Route::get('/analytics/interventions-by-type-over-time', [AnalyticsController::class, 'getInterventionsByTypeOverTime']);
+    Route::get('/analytics/departments-with-interventions', [AnalyticsController::class, 'getDepartmentsWithMostInterventions']);
+    Route::get('/analytics/interventions/department/{departmentId}', [AnalyticsController::class, 'getInterventionsByDepartment']);
+    Route::get('/analytics/all-interventions', [AnalyticsController::class, 'getAllInterventions']);
+
+    // Route pour déplacer une imprimante
     Route::put('/printers/{printer}/move', [PrinterController::class, 'move'])->name('printers.move');
     Route::get('/printer-movements', [PrinterController::class, 'getPrinterMovements'])->name('printer_movements.index');
     // Dashboard

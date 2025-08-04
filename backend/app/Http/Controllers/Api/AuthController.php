@@ -3,16 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Hash; // Import nécessaire pour Hash::make()
-use App\Models\User; // Import du modèle User
+use Carbon\Carbon; // Import de la classe Carbon
 
 class AuthController extends Controller
 {
     /**
-     * Gère la connexion des utilisateurs.
+     * Gère la connexion des utilisateurs et met à jour leur dernière connexion.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
@@ -20,43 +21,34 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
-        $request->validate([
+        $credentials = $request->validate([
             'email' => 'required|email',
             'password' => 'required',
         ]);
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
+        if (!Auth::attempt($credentials)) {
             throw ValidationException::withMessages([
                 'email' => ['Les identifiants fournis ne correspondent pas à nos enregistrements.'],
             ]);
         }
 
         $user = $request->user();
-        $token = $user->createToken('auth_token')->plainTextToken;
 
-        $userRole = $user->role ?? 'client';
-        $userRoles = [];
-        if (!empty($userRole)) {
-            $userRoles[] = $userRole;
-        }
+        // Mettre à jour la date de dernière connexion
+        $user->lastlogin = now();
+        $user->save();
+
+        // Charger la relation company si elle existe
+        $user->load('company');
+
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'message' => 'Connexion réussie',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $userRole,
-                'roles' => array_values(array_unique($userRoles)),
-                'company' => $user->company ?? null,
-                'status' => $user->status ?? null,
-                'statusDisplay' => $user->statusDisplay ?? null,
-                'lastLogin' => $user->lastLogin ?? null,
-                'requestsHandled' => $user->requestsHandled ?? null,
-            ],
+            'user' => $user,
             'token' => $token,
             'token_type' => 'Bearer',
-        ]);
+        ], 200);
     }
 
     /**
@@ -72,16 +64,12 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email',
             'password' => 'required|string|min:8|confirmed', // 'confirmed' nécessite un champ password_confirmation
-            'company' => 'nullable|string|max:255', // Le champ compagnie est maintenant toujours attendu pour un client
+            'company_id' => 'required|exists:companies,id', // Utiliser l'ID de la compagnie
         ]);
 
-        // Attribuer le rôle 'client' par défaut
+        // Attribuer le rôle 'client' et le statut 'active' par défaut
         $validatedData['role'] = 'client';
-        $validatedData['roleDisplay'] = 'Client'; // Valeur par défaut pour l'affichage
-        $validatedData['status'] = 'active'; // Statut par défaut
-        $validatedData['statusDisplay'] = 'Actif'; // Statut d'affichage par défaut
-        $validatedData['lastLogin'] = null; // Pas de dernière connexion à l'inscription
-        $validatedData['requestsHandled'] = '0'; // Par défaut 0 pour un client
+        $validatedData['status'] = 'active';
 
         // Hasher le mot de passe avant de le sauvegarder
         $validatedData['password'] = Hash::make($validatedData['password']);
@@ -89,19 +77,12 @@ class AuthController extends Controller
         // Créer l'utilisateur
         $user = User::create($validatedData);
 
+        // Charger la relation company pour la réponse
+        $user->load('company');
+
         return response()->json([
             'message' => 'Inscription réussie en tant que client. Vous pouvez maintenant vous connecter.',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role,
-                'roleDisplay' => $user->roleDisplay,
-                'company' => $user->company,
-                'status' => $user->status,
-                'statusDisplay' => $user->statusDisplay,
-                'requestsHandled' => $user->requestsHandled,
-            ],
+            'user' => $user,
         ], 201); // Code 201 Created
     }
 
@@ -126,25 +107,11 @@ class AuthController extends Controller
     public function user(Request $request)
     {
         $user = $request->user();
-        $userRole = $user->role ?? 'client';
-        $userRoles = [];
-        if (!empty($userRole)) {
-            $userRoles[] = $userRole;
-        }
+        // Charger la relation company si elle existe
+        $user->load('company');
 
         return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $userRole,
-                'roles' => array_values(array_unique($userRoles)),
-                'company' => $user->company ?? null,
-                'status' => $user->status ?? null,
-                'statusDisplay' => $user->statusDisplay ?? null,
-                'lastLogin' => $user->lastLogin ?? null,
-                'requestsHandled' => $user->requestsHandled ?? null,
-            ]
+            'user' => $user
         ]);
     }
 }

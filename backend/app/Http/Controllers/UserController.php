@@ -161,7 +161,7 @@ class UserController extends Controller
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->timestamp('last_login')->nullable()->after('remember_token'); // Ou après une autre colonne pertinente
+            $table->timestamp('lastlogin')->nullable()->after('remember_token'); // Ou après une autre colonne pertinente
         });
     }
 }
