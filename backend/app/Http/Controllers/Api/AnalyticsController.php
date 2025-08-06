@@ -15,7 +15,7 @@ use Illuminate\Validation\Rule;
 class AnalyticsController extends Controller
 {
     /**
-     * Helper to apply period, company, and department filtering to a query.
+     * Helper to apply period, company, department, and printer filtering to a query.
      *
      * @param \Illuminate\Database\Eloquent\Builder $query
      * @param \Illuminate\Http\Request $request
@@ -27,6 +27,7 @@ class AnalyticsController extends Controller
         $period = $request->query('period', 'Mois');
         $companyId = $request->query('company_id');
         $departmentId = $request->query('department_id');
+        $printerId = $request->query('printer_id'); // Ajout du filtre imprimante
 
         $now = Carbon::now();
         switch ($period) {
@@ -53,6 +54,11 @@ class AnalyticsController extends Controller
             $query->whereHas('printer', function ($q) use ($departmentId) {
                 $q->where('department_id', $departmentId);
             });
+        }
+
+        // Ajout de la logique de filtre pour l'imprimante
+        if ($printerId && $printerId !== 'all') {
+            $query->where('printer_id', $printerId);
         }
 
         return $query;
@@ -84,11 +90,9 @@ class AnalyticsController extends Controller
         if ($hours > 0) {
             $parts[] = "{$hours}h";
         }
-        // Afficher les minutes si elles existent, ou si des heures existent même si les minutes sont 0 (ex: 1h 0min 30s)
         if ($minutes > 0 || ($hours > 0 && $seconds == 0) || ($hours > 0 && $minutes == 0 && $seconds == 0 && $diffInSeconds > 0)) {
             $parts[] = "{$minutes}min";
         }
-        // Afficher les secondes si elles existent, ou si la durée est inférieure à une minute (ex: 30s)
         if ($seconds > 0 || (empty($parts) && $diffInSeconds > 0)) {
             $parts[] = "{$seconds}s";
         }
@@ -128,7 +132,6 @@ class AnalyticsController extends Controller
                     'intervention_type' => $intervention->intervention_type,
                     'created_at' => $intervention->created_at->format('Y-m-d H:i'),
                     'end_date' => $intervention->end_date ? $intervention->end_date->format('Y-m-d H:i') : null,
-                    // Utilisation de la nouvelle fonction formatDuration
                     'resolution_time_minutes' => $this->formatDuration($resolutionTimeSeconds),
 
                     'printer' => [
@@ -157,6 +160,7 @@ class AnalyticsController extends Controller
         $request->validate([
             'period' => ['sometimes', 'string', Rule::in(['Semaine', 'Mois', 'Année', 'Total'])],
             'company_id' => 'sometimes|nullable|exists:companies,id',
+            'department_id' => 'sometimes|nullable|exists:departments,id',
         ]);
 
         $requestForDepartmentsTop5 = clone $request;
@@ -518,8 +522,8 @@ class AnalyticsController extends Controller
         $content .= "Généré le : " . now()->format('Y-m-d H:i:s');
 
         return response($content, 200)
-                ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'attachment; filename="' . $reportType . '_report.pdf"');
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'attachment; filename="' . $reportType . '_report.pdf"');
     }
 
     public function getInterventionsByCompany(int $companyId)
@@ -571,7 +575,23 @@ class AnalyticsController extends Controller
 
         return response()->json($interventions);
     }
+    /**
+     * Get a printer by its ID.
+     *
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getImprimanteById(int $id)
+    {
+        $printer = Printer::with(['company', 'department'])
+                          ->find($id);
 
+        if (!$printer) {
+            return response()->json(['message' => 'Imprimante non trouvée.'], 404);
+        }
+
+        return response()->json($printer);
+    }
     public function getInterventionsByPrinter(int $printerId)
     {
         $interventions = Intervention::where('printer_id', $printerId)

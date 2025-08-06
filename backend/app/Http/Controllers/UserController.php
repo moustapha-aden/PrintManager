@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\UserCredentialsMail;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
@@ -46,7 +48,7 @@ class UserController extends Controller
     }
 
     // Crée un utilisateur
-     public function store(Request $request)
+    public function store(Request $request)
     {
        $validated = $request->validate([
         'name' => 'required|string',
@@ -61,6 +63,7 @@ class UserController extends Controller
         'roleDisplay' => 'nullable|string',
     ]);
 
+    $plainPassword=$validated['password'];
     $validated['password'] = Hash::make($validated['password']);
     $validated['statusDisplay'] = $validated['status']?? ucfirst($validated['status']);
 
@@ -68,6 +71,9 @@ class UserController extends Controller
 
 
     $user = User::create($validated);
+
+    // 3. Envoi de l'e-mail avec les informations de connexion
+    Mail::to($user->email)->send(new UserCredentialsMail($user, $plainPassword));
 
     return response()->json([
         'message' => 'Utilisateur créé avec succès.',

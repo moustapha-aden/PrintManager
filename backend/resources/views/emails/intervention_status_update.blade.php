@@ -70,7 +70,7 @@
             <li><strong>Statut actuel:</strong> {{ $intervention->status }}</li>
             <li><strong>Imprimante:</strong> {{ $intervention->printer->brand ?? 'N/A' }} {{ $intervention->printer->model ?? 'N/A' }}</li>
             <li><strong>Département ({{ $intervention->printer->brand ?? 'N/A' }} {{ $intervention->printer->model ?? 'N/A' }}):</strong> {{ $intervention->printer->department->name ?? 'N/A' }}</li>
-            <li><strong>company :</strong> {{ $intervention->printer->company->name ?? 'N/A' }}</li>
+            <li><strong>Société:</strong> {{ $intervention->printer->department->company->name ?? 'N/A' }}</li>
             <li><strong>Date de la demande:</strong> {{ \Carbon\Carbon::parse($intervention->start_date) }}</li>
         </ul>
 

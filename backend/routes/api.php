@@ -53,7 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Ressources principales
     Route::apiResource('users', UserController::class);
 
-      // NOUVEAU: Route pour récupérer les compteurs spécifiques d'imprimantes
+    // NOUVEAU: Route pour récupérer les compteurs spécifiques d'imprimantes
     // Utile pour afficher les chiffres sur les boutons "Non Attribuées" et "Retournées Entrepôt"
     Route::get('/printers/counts', [PrinterController::class, 'getPrinterCounts']);
     // Routes pour les imprimantes
@@ -105,5 +105,4 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [AnalyticsController::class, 'listReports']);
         Route::post('generate/{reportType}', [AnalyticsController::class, 'generateReport']);
     });
-
 });

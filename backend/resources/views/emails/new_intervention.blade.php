@@ -25,7 +25,7 @@
             <li><strong>Client:</strong> {{ $intervention->client->name ?? 'N/A' }}</li>
             <li><strong>Imprimante:</strong> {{ $intervention->printer->brand ?? 'N/A' }} {{ $intervention->printer->model ?? 'N/A' }}</li>
             <li><strong>Département ({{ $intervention->printer->brand ?? 'N/A' }} {{ $intervention->printer->model ?? 'N/A'}}):</strong> {{ $intervention->printer->department->name ?? 'N/A' }}</li> {{-- Correction ici pour accéder au nom du département de l'imprimante --}}
-            <li><strong>Societe:</strong>  {{ $intervention->printer->campany->name ?? 'N/A' }} </li>
+            <li><strong>Société:</strong> {{ $intervention->printer->department->company->name ?? 'N/A' }}</li>
             <li><strong>Date d'intervention:</strong> {{ \Carbon\Carbon::parse($intervention->start_date)}}</li>
             {{-- Ajoutez d'autres détails si nécessaire --}}
         </ul>
