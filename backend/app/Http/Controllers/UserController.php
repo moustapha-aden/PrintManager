@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -84,44 +85,54 @@ class UserController extends Controller
     // Met à jour un utilisateur
     public function update(Request $request, User $user)
     {
+        // Définition des règles de validation
         $rules = [
-        'name' => 'required|string|max:255',
-        'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-        'phone' => 'nullable|string|max:20',
-        // 'role' => 'sometimes|string|in:admin,client,technicien', // Seul l'admin devrait pouvoir modifier ceci
-    ];
+            'name' => 'sometimes|required|string|max:255', // 'sometimes' pour permettre les mises à jour partielles
+            // Règle unique pour l'email, mais ignore l'email de l'utilisateur actuel
+            'email' => [
+                'sometimes',
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users')->ignore($user->id),
+            ],
+            'role' => 'sometimes|required|string|in:admin,client,technicien',
+            'company_id' => 'nullable|exists:companies,id', // Peut être nul, doit exister
+            'department_id' => 'nullable|exists:departments,id', // Peut être nul, doit exister
+            'status' => 'sometimes|required|string|in:active,inactive',
+            'lastLogin' => 'nullable|date', // 'nullable' si ce champ peut être vide
+            'requestsHandled' => 'nullable|integer', // Supposons que c'est un entier
+            // Le champ 'password' n'est pas requis par défaut pour la mise à jour.
+            // Il sera traité uniquement si le frontend envoie un nouveau mot de passe.
+        ];
 
-    // Ajouter les règles pour le mot de passe si un nouveau mot de passe est fourni
-    if ($request->filled('password')) {
-        $rules['old_password'] = ['required', function ($attribute, $value, $fail) use ($user) {
-            if (!Hash::check($value, $user->password)) {
-                $fail('L\'ancien mot de passe est incorrect.');
-            }
-        }];
-        $rules['password'] = 'required|string|min:8|confirmed';
-        $rules['password_confirmation'] = 'required|string|min:8'; // Laravel gère 'confirmed'
-    }
+        // Si un nouveau mot de passe est fourni, ajoutez les règles de validation spécifiques au mot de passe.
+        // Puisque l'administrateur ne voit pas l'ancien mot de passe, nous ne validons pas 'old_password'.
+        // Si un mot de passe est envoyé, il est considéré comme le nouveau mot de passe.
+        if ($request->has('password') && !empty($request->password)) {
+            $rules['password'] = 'string|min:8'; // Pas 'required' car il est déjà dans le 'if', pas 'confirmed' car le frontend n'envoie pas 'password_confirmation' pour la modification
+        }
 
-    $request->validate($rules);
+        // Valide la requête avec les règles définies
+        $validatedData = $request->validate($rules);
 
-    // Mise à jour des autres champs
-    $user->name = $request->name;
-    $user->email = $request->email;
-    $user->phone = $request->phone;
+        // Mettre à jour les attributs de l'utilisateur avec les données validées
+        // La méthode fill() est plus propre pour les mises à jour massives
+        $user->fill($validatedData);
 
-    // Mettre à jour le rôle UNIQUEMENT si l'utilisateur est un administrateur et que le champ est présent
-    if (auth()->user()->role === 'admin' && $request->has('role')) {
-        $user->role = $request->role;
-    }
+        // Gérer le mot de passe séparément s'il a été fourni dans la requête
+        if ($request->has('password') && !empty($request->password)) {
+            $user->password = Hash::make($request->password);
+        }
 
-    // Mettre à jour le mot de passe si un nouveau a été fourni et validé
-    if ($request->filled('password')) {
-        $user->password = Hash::make($request->password);
-    }
+        // Sauvegarde les modifications
+        $user->save();
 
-    $user->save();
-
-    return response()->json($user);
+        // Retourne une réponse JSON avec l'utilisateur mis à jour
+        return response()->json([
+            'message' => 'Utilisateur mis à jour avec succès.',
+            'data' => $user
+        ]);
     }
     // Fonction utilitaire pour convertir le status en statusDisplay
 
