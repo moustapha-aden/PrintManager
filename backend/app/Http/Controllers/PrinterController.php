@@ -249,7 +249,7 @@ class PrinterController extends Controller
             if ($newDepartment->id == $warehouseDepartment->id) {
                 // Si déplacé vers l'entrepôt, marquer comme retourné et potentiellement inactif
                 $isReturnedToWarehouse = true;
-                $newCompanyId = null; // Une imprimante à l'entrepôt n'est pas associée à une compagnie
+                // $newCompanyId = null; // Une imprimante à l'entrepôt n'est pas associée à une compagnie
                 // Si l'imprimante était active, elle pourrait devenir inactive en entrepôt
                 if ($newStatus === 'active') {
                     $newStatus = 'inactive';

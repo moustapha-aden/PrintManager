@@ -101,7 +101,7 @@ class UserController extends Controller
             'department_id' => 'nullable|exists:departments,id', // Peut être nul, doit exister
             'status' => 'sometimes|required|string|in:active,inactive',
             'lastLogin' => 'nullable|date', // 'nullable' si ce champ peut être vide
-            'requestsHandled' => 'nullable|integer', // Supposons que c'est un entier
+            'requestsHandled' => 'nullable|string', // Supposons que c'est un entier
             // Le champ 'password' n'est pas requis par défaut pour la mise à jour.
             // Il sera traité uniquement si le frontend envoie un nouveau mot de passe.
         ];
