@@ -83,12 +83,22 @@ class UserController extends Controller
     }
 
     // Met à jour un utilisateur
+
+    // Met à jour un utilisateur (y compris le changement de mot de passe)
+
+    // Met à jour un utilisateur (y compris le changement de mot de passe)
     public function update(Request $request, User $user)
     {
-        // Définition des règles de validation
+        // 1. Autorisation : Un utilisateur ne peut modifier que son propre profil. Un admin peut modifier n'importe quel profil.
+        if (Auth::user()->id !== $user->id && Auth::user()->role !== 'admin') {
+            return response()->json([
+                'message' => 'Vous n\'êtes pas autorisé à modifier ce profil.'
+            ], 403);
+        }
+
+        // 2. Définition des règles de validation
         $rules = [
-            'name' => 'sometimes|required|string|max:255', // 'sometimes' pour permettre les mises à jour partielles
-            // Règle unique pour l'email, mais ignore l'email de l'utilisateur actuel
+            'name' => 'sometimes|required|string|max:255',
             'email' => [
                 'sometimes',
                 'required',
@@ -97,35 +107,53 @@ class UserController extends Controller
                 Rule::unique('users')->ignore($user->id),
             ],
             'role' => 'sometimes|required|string|in:admin,client,technicien',
-            'company_id' => 'nullable|exists:companies,id', // Peut être nul, doit exister
-            'department_id' => 'nullable|exists:departments,id', // Peut être nul, doit exister
+            'company_id' => 'nullable|exists:companies,id',
+            'department_id' => 'nullable|exists:departments,id',
             'status' => 'sometimes|required|string|in:active,inactive',
-            'lastLogin' => 'nullable|date', // 'nullable' si ce champ peut être vide
-            'requestsHandled' => 'nullable|string', // Supposons que c'est un entier
-            // Le champ 'password' n'est pas requis par défaut pour la mise à jour.
-            // Il sera traité uniquement si le frontend envoie un nouveau mot de passe.
+            'lastLogin' => 'nullable|date',
+            'requestsHandled' => 'nullable|string',
         ];
 
-        // Si un nouveau mot de passe est fourni, ajoutez les règles de validation spécifiques au mot de passe.
-        // Puisque l'administrateur ne voit pas l'ancien mot de passe, nous ne validons pas 'old_password'.
-        // Si un mot de passe est envoyé, il est considéré comme le nouveau mot de passe.
-        if ($request->has('password') && !empty($request->password)) {
-            $rules['password'] = 'string|min:8'; // Pas 'required' car il est déjà dans le 'if', pas 'confirmed' car le frontend n'envoie pas 'password_confirmation' pour la modification
+        // 3. Règles spécifiques pour le changement de mot de passe
+        if ($request->filled('password')) {
+            $rules['password'] = 'string|min:8|confirmed';
+            $rules['password_confirmation'] = 'required_with:password|string|min:8';
+
+            if (Auth::user()->id === $user->id) {
+                $rules['old_password'] = 'required|string';
+            }
         }
 
-        // Valide la requête avec les règles définies
+        // 4. Valide la requête avec les règles définies
         $validatedData = $request->validate($rules);
 
-        // Mettre à jour les attributs de l'utilisateur avec les données validées
-        // La méthode fill() est plus propre pour les mises à jour massives
-        $user->fill($validatedData);
+        // 5. Vérification de l'ancien mot de passe pour les utilisateurs qui modifient le leur
+        // et vérification que le nouveau mot de passe n'est pas le même que l'ancien
+        if (Auth::user()->id === $user->id && $request->filled('password')) {
+            // Vérification de l'ancien mot de passe
+            if (!Hash::check($request->old_password, $user->password)) {
+                throw ValidationException::withMessages([
+                    'old_password' => ['L\'ancien mot de passe est incorrect.'],
+                ]);
+            }
 
-        // Gérer le mot de passe séparément s'il a été fourni dans la requête
-        if ($request->has('password') && !empty($request->password)) {
+            // NOUVEAU: Vérification que le nouveau mot de passe n'est pas le même que l'ancien
+            if (Hash::check($request->password, $user->password)) {
+                throw ValidationException::withMessages([
+                    'password' => ['Le nouveau mot de passe ne peut pas être identique à l\'ancien.'],
+                ]);
+            }
+        }
+
+        // 6. Mettre à jour les attributs de l'utilisateur avec les données validées
+        $user->fill(array_diff_key($validatedData, array_flip(['password', 'password_confirmation', 'old_password'])));
+
+        // 7. Gérer le nouveau mot de passe séparément s'il a été fourni et validé
+        if ($request->filled('password')) {
             $user->password = Hash::make($request->password);
         }
 
-        // Sauvegarde les modifications
+        // 8. Sauvegarde les modifications
         $user->save();
 
         // Retourne une réponse JSON avec l'utilisateur mis à jour
@@ -134,6 +162,8 @@ class UserController extends Controller
             'data' => $user
         ]);
     }
+
+
     // Fonction utilitaire pour convertir le status en statusDisplay
 
     // Supprime un utilisateur
@@ -144,36 +174,45 @@ class UserController extends Controller
 
         return response()->json(['message' => 'Utilisateur supprimé.']);
     }
+public function changePassword(Request $request, User $user)
+{
+    // 1. Autorisation de l'utilisateur
+    if (Auth::user()->id !== $user->id && Auth::user()->role !== 'admin') {
+        return response()->json([
+            'message' => 'Vous n\'êtes pas autorisé à modifier ce profil.'
+        ], 403);
+    }
 
-    public function changePassword(Request $request, User $user)
-    {
-        // Ensure the authenticated user is authorized to change this password
-        // An admin can change any user's password.
-        // A user can only change their own password.
-        if (Auth::id() !== $user->id && Auth::user()->role !== 'admin') {
-            return response()->json(['message' => 'Unauthorized to change this password.'], 403);
-        }
+    // 2. Validation des données de la requête
+    $rules = [
+        'password' => 'required|string|min:8|confirmed', // Le champ est 'password' et non 'new_password'
+    ];
 
-        $request->validate([
-            'current_password' => 'required|string',
-            'new_password' => 'required|string|min:8|confirmed', // 'confirmed' checks for new_password_confirmation
-        ]);
+    // L'ancien mot de passe est requis seulement pour l'utilisateur qui modifie son propre profil
+    if (Auth::user()->id === $user->id) {
+        $rules['old_password'] = 'required|string'; // Le champ est 'old_password'
+    }
 
-        // Verify the current password for non-admin users changing their own password
-        // Admins can bypass current password check when changing other users' passwords if desired,
-        // but for a user changing their own, it's mandatory.
-        if (Auth::id() === $user->id && !Hash::check($request->current_password, $user->password)) {
+    $request->validate($rules);
+
+    // 3. Vérification du mot de passe actuel pour l'utilisateur
+    // Cette vérification ne s'applique qu'à l'utilisateur qui modifie son propre mot de passe
+    if (Auth::user()->id === $user->id) {
+        if (!Hash::check($request->old_password, $user->password)) {
             throw ValidationException::withMessages([
-                'current_password' => ['Le mot de passe actuel est incorrect.'],
+                'old_password' => ['L\'ancien mot de passe est incorrect.'],
             ]);
         }
-
-        // Update the password
-        $user->password = Hash::make($request->new_password);
-        $user->save();
-
-        return response()->json(['message' => 'Mot de passe mis à jour avec succès.'], 200);
     }
+
+    // 4. Mise à jour du mot de passe
+    $user->password = Hash::make($request->password);
+    $user->save();
+
+    return response()->json([
+        'message' => 'Le mot de passe a été mis à jour avec succès.'
+    ], 200);
+}
 
     public function up(): void
     {

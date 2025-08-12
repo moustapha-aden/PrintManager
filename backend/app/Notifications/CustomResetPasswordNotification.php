@@ -22,7 +22,7 @@ class CustomResetPasswordNotification extends ResetPasswordNotification
 
         // Construire l'URL complète vers votre page de réinitialisation React
         // Exemple: http://localhost:3000/reset-password?token=XYZ&email=abc@example.com
-        $url = $frontendUrl . '/reset-password?token=' . $this->token . '&email=' . $notifiable->getEmailForPasswordReset();
+        $url = $frontendUrl . 'http://localhost:3000/reset-password?token=' . $this->token . '&email=' . $notifiable->getEmailForPasswordReset();
 
         return (new MailMessage)
             ->subject('Réinitialisation de votre mot de passe')
