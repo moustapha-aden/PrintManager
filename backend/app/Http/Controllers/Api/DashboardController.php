@@ -43,25 +43,30 @@ class DashboardController extends Controller
         $printersMaintainedCount = Printer::where('status', 'maintenance')->count();
         $printersInactiveCount = Printer::where('status', 'inactive')->count();
 
-        // Imprimantes en stock (inactive + entrepôt) - Ancien calcul
+        // --- DÉBUT DE LA CORRECTION POUR is_purchased ---
+        // Ancienne ligne : $is_purchased=Printer::where('is_purchased', '1')->count();
+        // Correction : Utilisation d'une variable au nom plus clair et requête sur le booléen 'true'.
+        $purchasedPrintersCount = Printer::where('is_purchased', true)->count();
+        // --- FIN DE LA CORRECTION POUR is_purchased ---
+
+        // Imprimantes en stock (inactive + entrepôt)
         $printersInStockCount = 0;
         if ($warehouseDepartment) {
             $printersInStockCount = Printer::where('department_id', $warehouseDepartment->id)
-                ->where('status', 'inactive') // Cette condition peut être ajustée selon ta définition de "en stock"
+                // ->where('status', 'inactive') // Correction : La condition est `in_stock`, pas `inactive`
                 ->count();
         }
 
-        // NOUVEAU COMPTEUR : Imprimantes retournées à l'entrepôt
+        // Imprimantes non attribuées à un département
+        $unassignedPrintersCount = Printer::whereNull('department_id')->count();
+
+        // Imprimantes retournées à l'entrepôt
         $returnedToWarehousePrinterCount = 0;
         if ($warehouseDepartment) {
             $returnedToWarehousePrinterCount = Printer::where('department_id', $warehouseDepartment->id)
                 ->where('is_returned_to_warehouse', true)
                 ->count();
         }
-
-
-        // Imprimantes non attribuées à un département
-        $unassignedPrintersCount = Printer::whereNull('department_id')->count();
 
         //  INTERVENTIONS
         $totalInterventionCount = Intervention::count();
@@ -84,7 +89,8 @@ class DashboardController extends Controller
             'hors_service' => $totalPrinterCount ? round(($printersOutOfServiceCount / $totalPrinterCount) * 100, 1) : 0,
             'inactive' => $totalPrinterCount ? round(($printersInactiveCount / $totalPrinterCount) * 100, 1) : 0,
             'in_stock' => $totalPrinterCount ? round(($printersInStockCount / $totalPrinterCount) * 100, 1) : 0,
-            // Ajoute le pourcentage pour les imprimantes retournées à l'entrepôt
+            // Ajout du pourcentage pour les imprimantes achetées
+            'purchased' => $totalPrinterCount ? round(($purchasedPrintersCount / $totalPrinterCount) * 100, 1) : 0,
             'returned_to_warehouse' => $totalPrinterCount ? round(($returnedToWarehousePrinterCount / $totalPrinterCount) * 100, 1) : 0,
         ];
 
@@ -105,7 +111,9 @@ class DashboardController extends Controller
             'printersInactiveCount' => $printersInactiveCount,
             'printersInStockCount' => $printersInStockCount,
             'unassignedPrintersCount' => $unassignedPrintersCount,
-            'returnedToWarehousePrinterCount' => $returnedToWarehousePrinterCount, // <-- NOUVEAU COMPTEUR ICI
+            'returnedToWarehousePrinterCount' => $returnedToWarehousePrinterCount,
+            'purchasedPrintersCount' => $purchasedPrintersCount, // Ajout du nouveau compteur
+
             'printerStatsPercentages' => $printerStatsPercentages,
 
             //  Interventions
@@ -113,6 +121,7 @@ class DashboardController extends Controller
             'interventionsStatus' => $interventionsStatus,
         ]);
     }
+
 
     /**
      * Récupère les statistiques spécifiques à un technicien.

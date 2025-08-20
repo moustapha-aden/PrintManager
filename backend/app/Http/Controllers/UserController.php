@@ -70,6 +70,8 @@ class UserController extends Controller
 
     $validated['roleDisplay'] = $validated['role']?? ucfirst($validated['role']);
 
+    $validated['company_id'] = $validated['company_id'] ?? 1;       // Ex: company_id = 1
+    $validated['department_id'] = $validated['department_id'] ?? 1; // Ex: department_id = 1
 
     $user = User::create($validated);
 
@@ -89,12 +91,7 @@ class UserController extends Controller
     // Met à jour un utilisateur (y compris le changement de mot de passe)
     public function update(Request $request, User $user)
     {
-        // 1. Autorisation : Un utilisateur ne peut modifier que son propre profil. Un admin peut modifier n'importe quel profil.
-        if (Auth::user()->id !== $user->id && Auth::user()->role !== 'admin') {
-            return response()->json([
-                'message' => 'Vous n\'êtes pas autorisé à modifier ce profil.'
-            ], 403);
-        }
+
 
         // 2. Définition des règles de validation
         $rules = [
@@ -106,6 +103,7 @@ class UserController extends Controller
                 'max:255',
                 Rule::unique('users')->ignore($user->id),
             ],
+            'phone' => 'sometimes|nullable|string|max:20|regex:/^[\d\s\+\-\(\)\.]+$/',
             'role' => 'sometimes|required|string|in:admin,client,technicien',
             'company_id' => 'nullable|exists:companies,id',
             'department_id' => 'nullable|exists:departments,id',

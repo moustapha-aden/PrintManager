@@ -18,9 +18,12 @@ class Printer extends Model
         'company_id',
         'department_id',
         'installDate',
+        'is_purchased',
         'lastMaintenance',
         'is_returned_to_warehouse',
     ];
+
+
 
     public function company()
     {

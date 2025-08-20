@@ -39,7 +39,7 @@ class User extends Authenticatable
         'statusDisplay',
         'lastLogin',
         'requestsHandled',
-        'phone', // Ajouté pour le téléphone
+                'phone', // Ajouté pour le téléphone
     ];
 
     protected $hidden = [
