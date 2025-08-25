@@ -23,9 +23,28 @@ class PrinterController extends Controller
     public function index(Request $request)
     {
         $query = Printer::query();
-
+        $user = $request->user();
         // Charger les relations nécessaires pour l'affichage
         $query->with(['company', 'department', 'interventions', 'interventions.technician']);
+
+        // Filtrage spécifique pour clients
+        if ($user->role === 'client') {
+            if ($user->department_id) {
+                $query->where('department_id', $user->department_id);
+            } elseif ($user->company_id) {
+                $query->where('company_id', $user->company_id);
+            } else {
+                return response()->json([]);
+            }
+        } else {
+            // Pour l'admin ou technicien, appliquer les filtres via query params
+            if ($request->has('department_id') && $request->input('department_id') !== 'all') {
+                $query->where('department_id', $request->input('department_id'));
+            }
+            if ($request->has('company_id') && $request->input('company_id') !== 'all') {
+                $query->where('company_id', $request->input('company_id'));
+            }
+        }
 
         // Récupérer l'ID du département "Entrepôt" une seule fois
         $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
