@@ -23,8 +23,6 @@ class Printer extends Model
         'is_returned_to_warehouse',
     ];
 
-
-
     public function company()
     {
         return $this->belongsTo(Company::class);
