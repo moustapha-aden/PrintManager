@@ -69,9 +69,10 @@ class UserController extends Controller
     $validated['statusDisplay'] = $validated['status']?? ucfirst($validated['status']);
 
     $validated['roleDisplay'] = $validated['role']?? ucfirst($validated['role']);
-
-    $validated['company_id'] = $validated['company_id'] ?? 1;       // Ex: company_id = 1
-    $validated['department_id'] = $validated['department_id'] ?? 1; // Ex: department_id = 1
+    if($validated['role'] === 'admin' || $validated['role'] === 'technicien') {
+        $validated['company_id'] = $validated['company_id'] ?? 1;       // Ex: company_id = 1
+        $validated['department_id'] = $validated['department_id'] ?? 1; // Ex: department_id = 1
+    }
 
     $user = User::create($validated);
 
