@@ -7,14 +7,18 @@ use App\Http\Controllers\Api\CompanyController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\BrandController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\InterventionController;
 use App\Http\Controllers\PrinterController;
+use App\Http\Controllers\PrinterModelController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+
+
 
 
 // Authentification
@@ -61,7 +65,18 @@ Route::middleware('auth:sanctum')->group(function () {
     // passés via les paramètres de requête (ex: ?status=active&company_id=1&unassigned=true)
     Route::apiResource('printers', PrinterController::class);
 
-
+   // Routes pour la gestion des modèles d'imprimantes.
+// GET: Récupère la liste de tous les modèles d'imprimantes disponibles.
+// POST: Permet d'ajouter un nouveau modèle d'imprimante.
+Route::get('printer-models', [PrinterModelController::class, 'index']);
+Route::post('printer-models', [PrinterModelController::class, 'store']);
+    Route::apiResource('printer-models', PrinterModelController::class);
+// Routes pour la gestion des marques d'imprimantes.
+// GET: Récupère la liste de toutes les marques d'imprimantes.
+// POST: Permet d'ajouter une nouvelle marque.
+Route::get('brands', [BrandController::class, 'index']);
+Route::post('brands', [BrandController::class, 'store']);
+Route::apiResource('brands', BrandController::class);
 
     Route::apiResource('interventions', InterventionController::class);
     Route::get('/interventions/statistics', [InterventionController::class, 'getInterventionStatistics']);
