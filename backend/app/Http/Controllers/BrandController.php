@@ -8,9 +8,23 @@ use Illuminate\Http\Request;
 class BrandController extends Controller
 {
     // Liste des marques
-    public function index() {
-        return response()->json(Brand::all());
+    public function index(Request $request) {
+        // Récupérer les paramètres de pagination et de recherche du frontend
+        $perPage = $request->input('per_page', 10); // Nombre d'éléments par page, par défaut 10
+        $searchTerm = $request->input('search_term', ''); // Terme de recherche, vide par défaut
+
+        // Appliquer la recherche si un terme est fourni
+        $query = Brand::query();
+
+        if (!empty($searchTerm)) {
+            $query->where('name', 'like', '%' . $searchTerm . '%');
+        }
+
+        // Appliquer la pagination et retourner la réponse au format JSON
+        // Laravel paginate() renvoie automatiquement la structure {data: [], total: X, last_page: Y, ...}
+        return response()->json($query->paginate($perPage));
     }
+
 
     // Création d'une marque
     public function store(Request $request) {
