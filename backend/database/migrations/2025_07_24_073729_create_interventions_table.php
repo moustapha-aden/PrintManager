@@ -16,6 +16,7 @@ return new class extends Migration
 
             $table->dateTime('start_date');
             $table->dateTime('end_date')->nullable();
+            $table->dateTime('start_date_intervention')->nullable(); // Date de début réelle de l'intervention
 
             // Relations (assumant qu'il y a des tables `users` et `printers`)
             $table->foreignId('client_id')->constrained('users')->onDelete('set null')->nullable();
@@ -30,6 +31,7 @@ return new class extends Migration
             $table->text('solution')->nullable(); // Solution apportée, si applicable
             $table->dateTime('date_previsionnelle')->nullable(); // Date prévisionnelle de l'intervention
             $table->string('image_path')->nullable(); // Chemin de l'image associée à l'intervention
+
             $table->timestamps();
         });
     }

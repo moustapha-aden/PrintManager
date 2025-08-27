@@ -24,11 +24,13 @@ class Intervention extends Model
         'intervention_type',
         'date_previsionnelle',
         'image_path', // Assurez-vous que 'image_path' est bien dans fillable
+        'start_date_intervention', // Ajoutez ce champ si nécessaire
     ];
 
     protected $casts = [
         'start_date' => 'datetime',
         'end_date' => 'datetime',
+        'start_date_intervention' => 'datetime',
         'date_previsionnelle' => 'datetime', // Ajoutez ceci si vous voulez le caster aussi
     ];
 

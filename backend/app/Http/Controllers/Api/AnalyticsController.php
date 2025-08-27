@@ -118,8 +118,8 @@ class AnalyticsController extends Controller
             ->get()
             ->map(function ($intervention) {
                 $resolutionTimeSeconds = null;
-                if ($intervention->start_date && $intervention->end_date) {
-                    $start = Carbon::parse($intervention->start_date);
+                if ($intervention->start_date_intervention && $intervention->end_date) {
+                    $start = Carbon::parse($intervention->start_date_intervention);
                     $end = Carbon::parse($intervention->end_date);
                     $resolutionTimeSeconds = $end->diffInSeconds($start);
                 }
@@ -133,6 +133,7 @@ class AnalyticsController extends Controller
                     'created_at' => $intervention->created_at->format('Y-m-d H:i'),
                     'end_date' => $intervention->end_date ? $intervention->end_date->format('Y-m-d H:i') : null,
                     'resolution_time_minutes' => $this->formatDuration($resolutionTimeSeconds),
+
 
                     'printer' => [
                         'id' => $intervention->printer->id ?? null,
@@ -235,8 +236,8 @@ class AnalyticsController extends Controller
         ->get()
         ->map(function ($intervention) {
             $resolutionTimeSeconds = null;
-            if ($intervention->start_date && $intervention->end_date) {
-                $start = Carbon::parse($intervention->start_date);
+            if ($intervention->start_date_intervention && $intervention->end_date) {
+                $start = Carbon::parse($intervention->start_date_intervention);
                 $end = Carbon::parse($intervention->end_date);
                 $resolutionTimeSeconds = $end->diffInSeconds($start);
             }
@@ -303,7 +304,7 @@ class AnalyticsController extends Controller
         if ($resolvedInterventionsWithDates->count() > 0) {
             $totalDurationInSeconds = 0;
             foreach ($resolvedInterventionsWithDates->get() as $intervention) {
-                $start = Carbon::parse($intervention->start_date);
+                $start = Carbon::parse($intervention->start_date_intervention);
                 $end = Carbon::parse($intervention->end_date);
                 $totalDurationInSeconds += $end->diffInSeconds($start);
             }
@@ -541,8 +542,8 @@ class AnalyticsController extends Controller
         ->get()
         ->map(function ($intervention) {
             $resolutionTimeSeconds = null;
-            if ($intervention->start_date && $intervention->end_date) {
-                $start = Carbon::parse($intervention->start_date);
+            if ($intervention->start_date_intervention && $intervention->end_date) {
+                $start = Carbon::parse($intervention->start_date_intervention);
                 $end = Carbon::parse($intervention->end_date);
                 $resolutionTimeSeconds = $end->diffInSeconds($start);
             }
@@ -606,8 +607,8 @@ class AnalyticsController extends Controller
             ->get()
             ->map(function ($intervention) {
                 $resolutionTimeSeconds = null;
-                if ($intervention->start_date && $intervention->end_date) {
-                    $start = Carbon::parse($intervention->start_date);
+                if ($intervention->start_date_intervention && $intervention->end_date) {
+                    $start = Carbon::parse($intervention->start_date_intervention);
                     $end = Carbon::parse($intervention->end_date);
                     $resolutionTimeSeconds = $end->diffInSeconds($start);
                 }

@@ -166,6 +166,7 @@ class InterventionController extends Controller
       'end_date' => 'nullable|date|after_or_equal:start_date',
       'date_previsionnelle' => 'nullable|date|after_or_equal:start_date',
       'solution' => 'nullable|string|max:1000',
+      'start_date_intervention' => 'nullable|date',
     ]);
 
     // Assigner une valeur par défaut à technician_id si elle est vide
@@ -237,6 +238,7 @@ class InterventionController extends Controller
       'date_previsionnelle' => 'nullable|date|after_or_equal:start_date',
       'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,JPEG,PNG,JPG,GIF,Jpeg|max:2048',
       'delete_photo' => 'sometimes|boolean',
+      'start_date_intervention' => 'nullable|date|after_or_equal:date_previsionnelle',
     ]);
 
     if ($request->boolean('delete_photo') && $intervention->image_path) {
