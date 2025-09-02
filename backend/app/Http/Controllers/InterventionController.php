@@ -238,7 +238,7 @@ class InterventionController extends Controller
       'date_previsionnelle' => 'nullable|date|after_or_equal:start_date',
       'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,JPEG,PNG,JPG,GIF,Jpeg|max:2048',
       'delete_photo' => 'sometimes|boolean',
-      'start_date_intervention' => 'nullable|date|after_or_equal:date_previsionnelle',
+      'start_date_intervention' => 'nullable|date|after_or_equal:start_date',
     ]);
 
     if ($request->boolean('delete_photo') && $intervention->image_path) {
