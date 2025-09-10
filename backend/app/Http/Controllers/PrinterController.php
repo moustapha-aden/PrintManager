@@ -145,7 +145,8 @@ class PrinterController extends Controller
 
         $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
         if ($warehouseDepartment && $validated['department_id'] == $warehouseDepartment->id) {
-            $validated['company_id'] = null;
+            // $validated['company_id'] = null;
+            // $validated['is_purchased'] = "entrepot";
         }
 
         if ($request->has('is_returned_to_warehouse')) {
@@ -285,6 +286,7 @@ class PrinterController extends Controller
                 'company_id' => $newCompanyId,
                 'is_returned_to_warehouse' => $isReturnedToWarehouse,
                 'status' => $newStatus,
+                'is_purchased' => 'sometimes|boolean',
             ]);
 
             PrinterMovement::create([
