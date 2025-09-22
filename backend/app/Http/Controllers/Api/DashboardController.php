@@ -35,6 +35,9 @@ class DashboardController extends Controller
 
         //  DÉPARTEMENT "ENTREPÔT"
         $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
+        $stock=Department::where('name', 'stock')->first();
+
+        // Ajoutez cette ligne pour le débogage
 
         //  IMPRIMANTES
         $totalPrinterCount = Printer::count();
@@ -49,13 +52,20 @@ class DashboardController extends Controller
         $purchasedPrintersCount = Printer::where('is_purchased', true)->count();
         // --- FIN DE LA CORRECTION POUR is_purchased ---
 
-        // Imprimantes en stock (inactive + entrepôt)
+        // Imprimantes en entrepôt (inactive + entrepôt)
         $printersInStockCount = 0;
         if ($warehouseDepartment) {
             $printersInStockCount = Printer::where('department_id', $warehouseDepartment->id)
-                // ->where('status', 'inactive') // Correction : La condition est `in_stock`, pas `inactive`
                 ->count();
         }
+
+        // Imprimantes en stock (inactive + entrepôt)
+        $printersInStock = 0;
+        if ($warehouseDepartment) {
+            $printersInStock = Printer::where('department_id', $stock->id)
+                ->count();
+        }
+
 
         // Imprimantes non attribuées à un département
         $unassignedPrintersCount = Printer::whereNull('department_id')->count();
@@ -88,7 +98,7 @@ class DashboardController extends Controller
             'active' => $totalPrinterCount ? round(($activePrinterCount / $totalPrinterCount) * 100, 1) : 0,
             'hors_service' => $totalPrinterCount ? round(($printersOutOfServiceCount / $totalPrinterCount) * 100, 1) : 0,
             'inactive' => $totalPrinterCount ? round(($printersInactiveCount / $totalPrinterCount) * 100, 1) : 0,
-            'in_stock' => $totalPrinterCount ? round(($printersInStockCount / $totalPrinterCount) * 100, 1) : 0,
+            'in_stock' => $totalPrinterCount ? round((($printersInStockCount+$printersInStock) / $totalPrinterCount) * 100, 1) : 0,
             // Ajout du pourcentage pour les imprimantes achetées
             'purchased' => $totalPrinterCount ? round(($purchasedPrintersCount / $totalPrinterCount) * 100, 1) : 0,
             'returned_to_warehouse' => $totalPrinterCount ? round(($returnedToWarehousePrinterCount / $totalPrinterCount) * 100, 1) : 0,
@@ -110,6 +120,7 @@ class DashboardController extends Controller
             'printersMaintainedCount' => $printersMaintainedCount,
             'printersInactiveCount' => $printersInactiveCount,
             'printersInStockCount' => $printersInStockCount,
+            'printersInStock'=>$printersInStock,
             'unassignedPrintersCount' => $unassignedPrintersCount,
             'returnedToWarehousePrinterCount' => $returnedToWarehousePrinterCount,
             'purchasedPrintersCount' => $purchasedPrintersCount, // Ajout du nouveau compteur

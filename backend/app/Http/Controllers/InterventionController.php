@@ -163,10 +163,10 @@ class InterventionController extends Controller
       'priority' => ['required', 'string', Rule::in(['Haute', 'Moyenne', 'Basse', 'Faible', 'Urgent'])],
       'intervention_type' => 'required|string|max:255',
       'photo' => 'nullable|image|max:2048',
+      'start_date_intervention' => 'nullable|date',
       'end_date' => 'nullable|date|after_or_equal:start_date',
       'date_previsionnelle' => 'nullable|date|after_or_equal:start_date',
       'solution' => 'nullable|string|max:1000',
-      'start_date_intervention' => 'nullable|date',
     ]);
 
     // Assigner une valeur par défaut à technician_id si elle est vide

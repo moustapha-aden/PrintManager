@@ -24,6 +24,9 @@ class Company extends Model
         'contact_person', // Ajouté selon votre migration
         'status',
         'is_returned_to_warehouse',
+        'quota_BW',
+        'quota_Color',
+        'quota_monthly',
     ];
 
     /**

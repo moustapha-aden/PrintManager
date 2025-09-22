@@ -38,6 +38,9 @@ class CompanyController extends Controller
             'email' => 'nullable|string|email|max:255',
             'contact_person' => 'nullable|string|max:255', // Ajouté selon votre migration
             'status' => 'nullable|string|', // Le statut est maintenant géré
+            'quota_BW'=>'required|integer',
+            'quota_Color'=>'required|integer',
+            'quota_monthly'=>'required|integer',
         ]);
 
         try {
@@ -87,6 +90,9 @@ class CompanyController extends Controller
             'email' => 'nullable|string|email|max:255',
             'contact_person' => 'nullable|string|max:255', // Ajouté selon votre migration
             'status' => 'sometimes|required|string|', // Le statut est maintenant géré
+            'quota_BW'=>'sometimes|integer',
+            'quota_Color'=>'sometimes|integer',
+            'quota_monthly'=>'sometimes|integer',
         ]);
 
         try {

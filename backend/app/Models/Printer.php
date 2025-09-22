@@ -20,7 +20,10 @@ class Printer extends Model
         'installDate',
         'is_purchased',
         'lastMaintenance',
+        'total_quota_pages',
         'is_returned_to_warehouse',
+        'monthly_quota_color',
+        'monthly_quota_bw',
     ];
 
     public function company()
@@ -37,4 +40,12 @@ class Printer extends Model
     {
         return $this->hasMany(Intervention::class);
     }
+
+    // 🔹 Relations pour les quotas
+    public function quotas()
+    {
+        return $this->hasMany(PrinterQuota::class);
+    }
+
+
 }

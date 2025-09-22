@@ -20,6 +20,9 @@ return new class extends Migration
             $table->string('email')->nullable(); // E-mail de contact général
             $table->string('contact_person')->nullable(); // Personne de contact principale
             $table->string('status')->default('Active'); // Statut de la société (Active, Inactive, etc.)
+            $table->integer('quota_BW')->nullable()->default(40);
+            $table->integer('quota_Color')->nullable()->default(60);
+            $table->integer('quota_monthly')->nullable();
             $table->timestamps(); // created_at et updated_at
         });
     }

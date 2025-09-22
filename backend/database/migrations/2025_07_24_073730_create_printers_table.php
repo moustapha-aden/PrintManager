@@ -20,10 +20,16 @@ return new class extends Migration
             $table->string('statusDisplay')->default('active'); // "Active", "En maintenance", "Hors service"
             $table->foreignId('company_id')->constrained('companies'); // ID de la société, clé étrangère
             $table->foreignId('department_id')->constrained('departments'); // ID du département, clé étrangère
+            // Quota mensuel de pages
+            $table->integer('total_quota_pages')->default(0)->comment('Quota total de pages autorisées.');
+
             $table->date('installDate')->nullable();
             $table->dateTime('lastMaintenance')->nullable();
             $table->boolean('is_purchased')->default(true)->comment('Indique si l\'imprimante est achetée (true) ou louée (false).');
             $table->boolean('is_returned_to_warehouse')->default(false)->comment('Indique si l\'imprimante a été retournée à l\'entrepôt.');
+             // Quotas par type d'impression
+            $table->integer('monthly_quota_bw')->default(0)->comment('Quota mensuel noir et blanc');
+            $table->integer('monthly_quota_color')->default(0)->comment('Quota mensuel couleur');
 
             $table->timestamps(); // created_at et updated_at
         });

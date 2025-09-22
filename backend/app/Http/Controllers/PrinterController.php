@@ -49,6 +49,9 @@ class PrinterController extends Controller
         // Récupérer l'ID du département "Entrepôt" une seule fois
         $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
         $warehouseDepartmentId = $warehouseDepartment ? $warehouseDepartment->id : null;
+        // Récupérer l'ID du département "stock" une seule fois
+        $stockDepartment = Department::where('name', 'stock')->first();
+        $stockDepartmentId = $stockDepartment ? $stockDepartment->id : null;
 
         // Prioriser les filtres spécifiques basés sur des requêtes dérivées
         if ($request->has('unassigned') && filter_var($request->input('unassigned'), FILTER_VALIDATE_BOOLEAN)) {
@@ -57,8 +60,8 @@ class PrinterController extends Controller
             $query->where('is_returned_to_warehouse', true);
         } elseif ($request->has('in_stock_filter') && filter_var($request->input('in_stock_filter'), FILTER_VALIDATE_BOOLEAN)) {
             if ($warehouseDepartmentId) {
-                $query->where('department_id', $warehouseDepartmentId)
-                      ->where('status', 'inactive');
+                $ids = array_filter([$warehouseDepartmentId, $stockDepartmentId]);
+                $query->whereIn('department_id', $ids);
             } else {
                 Log::warning("Demande de filtre 'en_stock' mais le département 'Entrepôt' est introuvable.");
                 return response()->json([]);
@@ -140,6 +143,8 @@ class PrinterController extends Controller
             'is_returned_to_warehouse' => 'boolean',
             // --- NOUVEAU: Validation pour le champ is_purchased ---
             'is_purchased' => 'required|boolean',
+            'monthly_quota_color'=>'sometimes|integer',
+            'monthly_quota_bw'=>'sometimes|integer',
             // --- FIN DE LA NOUVELLE VALIDATION ---
         ]);
 
@@ -152,7 +157,7 @@ class PrinterController extends Controller
         if ($request->has('is_returned_to_warehouse')) {
             $validated['is_returned_to_warehouse'] = filter_var($request->input('is_returned_to_warehouse'), FILTER_VALIDATE_BOOLEAN);
         }
-
+        $validated["total_quota_pages"]=$validated["monthly_quota_color"]+$validated["monthly_quota_bw"];
         // --- NOUVEAU: Utiliser la valeur validée directement ---
         if ($request->has('is_purchased')) {
             $validated['is_purchased'] = filter_var($request->input('is_purchased'), FILTER_VALIDATE_BOOLEAN);
@@ -192,11 +197,14 @@ class PrinterController extends Controller
             // --- NOUVEAU: Validation pour le champ is_purchased ---
             'is_purchased' => 'sometimes|boolean',
             // --- FIN DE LA NOUVELLE VALIDATION ---
+            'monthly_quota_color'=>'sometimes|integer',
+            'monthly_quota_bw'=>'sometimes|integer',
         ]);
 
         if ($request->has('is_returned_to_warehouse')) {
             $validated['is_returned_to_warehouse'] = filter_var($request->input('is_returned_to_warehouse'), FILTER_VALIDATE_BOOLEAN);
         }
+        $validated["total_quota_pages"]=$validated["monthly_quota_color"]+$validated["monthly_quota_bw"];
 
         // --- NOUVEAU: Gérer la mise à jour du champ is_purchased ---
         if ($request->has('is_purchased')) {
@@ -286,7 +294,6 @@ class PrinterController extends Controller
                 'company_id' => $newCompanyId,
                 'is_returned_to_warehouse' => $isReturnedToWarehouse,
                 'status' => $newStatus,
-                'is_purchased' => 'sometimes|boolean',
             ]);
 
             PrinterMovement::create([
@@ -352,12 +359,13 @@ class PrinterController extends Controller
         $warehouseDepartment = Department::where('name', 'Entrepôt')->first();
         $warehouseDepartmentId = $warehouseDepartment ? $warehouseDepartment->id : null;
 
+        $stockDepartment = Department::where('name', 'stock')->first();
+        $stockDepartmentId = $stockDepartment ? $stockDepartment->id : null;
+
         $inStockCount = 0;
-        if ($warehouseDepartmentId) {
-            $inStockCount = Printer::where('department_id', $warehouseDepartmentId)
-                                   ->where('status', 'inactive')
-                                   ->count();
-        }
+
+            $inStockCount = Printer::whereIn('department_id', [$warehouseDepartmentId,$stockDepartmentId])->count();
+
 
         $returnedToWarehouseCount = Printer::where('is_returned_to_warehouse', true)->count();
 
@@ -432,5 +440,46 @@ class PrinterController extends Controller
             case 'inactive': return 'Inactive';
             default: return ucfirst($status);
         }
+    }
+
+    // ... toutes vos méthodes existantes (index, show, store, update, destroy, etc.) ...
+
+    public function updateFromQuota(Request $request)
+    {
+        $validated = $request->validate([
+            'printer_id' => 'required|exists:printers,id',
+            'monthly_quota_color' => 'required|integer',
+            'monthly_quota_bw' => 'required|integer',
+        ]);
+
+        $printer = Printer::findOrFail($validated['printer_id']);
+
+        // Stockez les valeurs actuelles de l'imprimante avant la mise à jour
+        $oldMonthlyColor = $printer->monthly_quota_color;
+        $oldMonthlyBW = $printer->monthly_quota_bw;
+        $oldTotalPages = $printer->total_quota_pages;
+
+        // Effectuez la soustraction pour trouver les valeurs du mois en cours
+        $newMonthlyColor = $validated['monthly_quota_color'] - $oldMonthlyColor;
+        $newMonthlyBW = $validated['monthly_quota_bw'] - $oldMonthlyBW;
+        $newTotalPages = $newMonthlyColor + $newMonthlyBW;
+
+        // Mise à jour des valeurs de l'imprimante
+        $printer->update([
+            'monthly_quota_color' => $newMonthlyColor,
+            'monthly_quota_bw' => $newMonthlyBW,
+            'total_quota_pages' => $oldTotalPages + $newTotalPages,
+        ]);
+
+        Log::info('Mise à jour des compteurs de l\'imprimante', [
+            'printer_id' => $printer->id,
+            'anciennes_valeurs_couleur' => $oldMonthlyColor,
+            'anciennes_valeurs_NB' => $oldMonthlyBW,
+            'nouvelles_valeurs_couleur' => $newMonthlyColor,
+            'nouvelles_valeurs_NB' => $newMonthlyBW,
+            'nouveau_total' => $printer->total_quota_pages,
+        ]);
+
+        return response()->json(['message' => 'Compteurs de l\'imprimante mis à jour avec succès.', 'printer' => $printer]);
     }
 }
