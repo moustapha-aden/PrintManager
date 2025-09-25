@@ -13,13 +13,14 @@ use App\Http\Controllers\InterventionController;
 use App\Http\Controllers\PrinterController;
 use App\Http\Controllers\PrinterModelController;
 use App\Http\Controllers\PrinterQuotaController;
-use App\Http\Controllers\PrinterReportController;
+use App\Http\Controllers\QuotaController;
 use App\Http\Controllers\QuotaReportController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+
 
 
 
@@ -120,10 +121,13 @@ Route::apiResource('brands', BrandController::class);
     });
 
 
-    Route::get('/printers/{printer}/report', [PrinterReportController::class, 'generateReport']);
+    Route::get('/quotas/report', [QuotaReportController::class, 'generateGroupReport']);
+
+    Route::get('quotas/{quota}/report', [QuotaController::class, 'generateSingleQuotaReport']);
+
     // Fichier : routes/api.php
     // Route pour les rapports de quotas globaux
-    Route::get('/quotas/report', [QuotaReportController::class, 'generateGroupReport']);
+
 });
         //Quota
         Route::apiResource('quotas', PrinterQuotaController::class);

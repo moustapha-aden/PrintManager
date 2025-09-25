@@ -1,11 +1,10 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\PrinterQuota;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log; // <-- importer Log
+use Illuminate\Support\Facades\Log;
 
 class QuotaReportController extends Controller
 {
@@ -24,7 +23,7 @@ class QuotaReportController extends Controller
 
         // 2. Requête de base
         $query = PrinterQuota::with(['printer.company', 'printer.department'])
-            ->whereBetween('mois', [$request->start_date, $request->end_date])
+            ->whereBetween('created_at', [$request->start_date, $request->end_date])
             ->where(function ($q) {
                 $q->where('total_quota', '>', 0)
                   ->orWhere('monthly_quota_bw', '>', 0)
@@ -58,17 +57,19 @@ class QuotaReportController extends Controller
             'company'    => $company,
             'department' => $department,
         ];
+
         if ($quotas->isEmpty()) {
-    Log::warning('Aucun quota trouvé pour ces critères', [
-        'start_date' => $request->start_date,
-        'end_date' => $request->end_date,
-        'company_id' => $request->company_id ?? null,
-        'department_id' => $request->department_id ?? null
-    ]);
-}
+            Log::warning('Aucun quota trouvé pour ces critères', [
+                'start_date' => $request->start_date,
+                'end_date' => $request->end_date,
+                'company_id' => $request->company_id ?? null,
+                'department_id' => $request->department_id ?? null
+            ]);
+        }
+
         // 5. Génération du PDF
         $pdf = Pdf::loadView('reports.quota_report', $data);
-        Log::info('PDF généré');
+        Log::info('PDF généré', $data);
 
         // 6. Retour du PDF en stream
         return $pdf->stream("rapport_global_{$request->start_date}_{$request->end_date}.pdf");
