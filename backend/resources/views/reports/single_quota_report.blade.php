@@ -45,13 +45,9 @@
     </div>
 
     <div class="section">
-        <h2>Détails du Relevé de Quota</h2>
+        <h2>Détails du Relevé du Mois <span>{{ \Carbon\Carbon::parse($quota->mois)->translatedFormat('F Y') }}</span></h2>
         <table>
-            <tbody> <tr>
-                    <th>Mois du Quota :</th>
-                    <td>
-                         {{ \Carbon\Carbon::parse($quota->mois)->translatedFormat('F Y') }}
-                </tr>
+            <tbody>
                 <tr>
                     <th>Date de Prélèvement</th>
                     <td>{{ \Carbon\Carbon::parse($quota->date_prelevement)->format('d/m/Y') }}</td>

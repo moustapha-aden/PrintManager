@@ -7,7 +7,7 @@
         body { font-family: 'Arial', sans-serif; font-size: 12px; }
         .header { text-align: center; margin-bottom: 20px; }
         .header h1 { margin: 0; }
-        .section { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
+        .section { margin-bottom: 30px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
         .section h2 { margin-top: 0; font-size: 16px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
         .details-list { list-style: none; padding: 0; margin: 0; }
         .details-list li { margin-bottom: 5px; }
@@ -17,6 +17,10 @@
     </style>
 </head>
 <body>
+    @php
+        \Carbon\Carbon::setLocale('fr');
+        setlocale(LC_TIME, 'fr_FR.utf8', 'fra');
+    @endphp
 
     <div class="header">
         <h1>Rapport de Production</h1>
@@ -24,27 +28,31 @@
         @if($company)
             <p>Société : {{ $company->name }}</p>
         @endif
-        @if($department)
-            <p>Département : {{ $department->name }}</p>
-        @endif
         <p>Généré le : {{ date('d/m/Y') }}</p>
     </div>
 
     @forelse($quotas as $quota)
         <div class="section">
-            <h2>Imprimante : {{ $quota->printer?->brand ?? 'N/A' }} {{ $quota->printer?->model ?? '' }} ({{ $quota->printer?->serial ?? '' }})</h2>
+            <h2>
+                Imprimante : {{ $quota->printer?->brand ?? 'N/A' }}
+                {{ $quota->printer?->model ?? '' }}
+                ({{ $quota->printer?->serial ?? '' }})
+            </h2>
+
             <ul class="details-list">
+                <li><strong>Département :</strong> {{ $quota->printer?->department?->name ?? 'N/A' }}</li>
                 <li><strong>Marque :</strong> {{ $quota->printer?->brand ?? 'N/A' }}</li>
                 <li><strong>Modèle :</strong> {{ $quota->printer?->model ?? 'N/A' }}</li>
                 <li><strong>Numéro de série :</strong> {{ $quota->printer?->serial ?? 'N/A' }}</li>
-                <li><strong>Total de quota :</strong> {{ $quota->printer?->total_quota_pages ?? 'N/A' }}</li>
+                <li><strong>Total de quota :</strong> {{ $quota->total_quota ?? 0 }}</li>
+                <li><strong>Quota  :</strong> {{ $quota->company?->quota_monthly > 1 ? $quota->company?->quota_monthly : ($quota->department?->quota_monthly > 1 ? $quota->department?->quota_monthly : 0) }}</li>
             </ul>
 
             <h3>Relevés de Quotas</h3>
             <table>
                 <thead>
                     <tr>
-                        <th>Date</th>
+                        <th>Mois</th>
                         <th>Quota N&B</th>
                         <th>Quota Couleur</th>
                         <th>Total</th>
@@ -54,7 +62,7 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>{{ \Carbon\Carbon::parse($quota->mois)->format('d/m/Y') }}</td>
+                        <td>{{ \Carbon\Carbon::parse($quota->mois)->translatedFormat('F Y') }}</td>
                         <td>{{ $quota->monthly_quota_bw }}</td>
                         <td>{{ $quota->monthly_quota_color }}</td>
                         <td>{{ $quota->total_quota }}</td>

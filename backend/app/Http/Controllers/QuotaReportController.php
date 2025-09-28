@@ -47,8 +47,14 @@ class QuotaReportController extends Controller
 
         // 4. Préparer les données pour la vue
         $company = $quotas->isNotEmpty() ? $quotas->first()->printer?->company : null;
-        $department = $quotas->isNotEmpty() ? $quotas->first()->printer?->department : null;
-        Log::info('Données pour vue préparées', ['company' => $company?->name, 'department' => $department?->name]);
+        $department =$quotas->pluck('printer.department')
+                      ->unique('id')
+                      ->filter(); // retire les null
+        Log::info('Données pour vue préparées', ['company' => $company?->name,
+    'departments' => $department->pluck('name')->toArray()
+]);
+
+        // Log::info('Données pour vue préparées', ['company' => $company?->name, 'department' => $department?->name]);
 
         $data = [
             'quotas'     => $quotas,
