@@ -26,6 +26,10 @@ return new class extends Migration
             $table->date('installDate')->nullable();
             $table->dateTime('lastMaintenance')->nullable();
             $table->boolean('is_purchased')->default(true)->comment('Indique si l\'imprimante est achetée (true) ou louée (false).');
+            $table->integer('monthly_quota_color_large')->default(0)->comment('Quota mensuel couleur grand format');
+
+            $table->integer('monthly_quota_bw_large')->default(0)->comment('Quota mensuel noir et blanc grand format');
+
             $table->boolean('is_returned_to_warehouse')->default(false)->comment('Indique si l\'imprimante a été retournée à l\'entrepôt.');
              // Quotas par type d'impression
             $table->integer('monthly_quota_bw')->default(0)->comment('Quota mensuel noir et blanc');

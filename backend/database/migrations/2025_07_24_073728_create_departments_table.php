@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('departments', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->integer('quota_monthly')->default(0)->comment('Quota mensuel par défaut pour le département');
             $table->foreignId('company_id')->constrained('companies')->onDelete('cascade'); // Chaque département appartient à une entreprise
             $table->timestamps();
         });

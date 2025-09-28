@@ -32,6 +32,7 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'name' => 'required|string',
             'company_id' => 'required|exists:companies,id',
+            'quota_monthly'=>'sometimes|integer',
         ]);
 
         $department = Department::create($validated);
@@ -46,6 +47,7 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'name' => 'sometimes|string',
             'company_id' => 'sometimes|exists:companies,id',
+            'quota_monthly'=>'sometimes|integer',
         ]);
 
         $department->update($validated);

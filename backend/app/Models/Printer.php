@@ -24,6 +24,8 @@ class Printer extends Model
         'is_returned_to_warehouse',
         'monthly_quota_color',
         'monthly_quota_bw',
+        'monthly_quota_color_large',
+        'monthly_quota_bw_large',
     ];
 
     public function company()

@@ -49,7 +49,9 @@ public function store(Request $request)
     $validated = $request->validate([
         'printer_id' => 'required|exists:printers,id',
         'monthly_quota_bw' => 'required|integer|min:0',
+        'monthly_quota_bw_large' => 'required|integer|min:0',
         'monthly_quota_color' => 'required|integer|min:0',
+        'monthly_quota_color_large' => 'required|integer|min:0',
         'date_prelevement'=> 'sometimes|date',
         'mois'=> 'sometimes|date',
 
@@ -63,9 +65,11 @@ public function store(Request $request)
 
     // 3. Calculer la consommation réelle du mois en cours
     $bwConsumedThisMonth = max(0, $validated['monthly_quota_bw'] - $printer->monthly_quota_bw);
+    $bwLargeConsumedThisMonth = max(0, $validated['monthly_quota_bw_large'] - $printer->monthly_quota_bw_large);
     $colorConsumedThisMonth = max(0, $validated['monthly_quota_color'] - $printer->monthly_quota_color);
+    $colorLargeConsumedThisMonth = max(0, $validated['monthly_quota_color_large'] - $printer->monthly_quota_color_large);
 
-    $totalConsumedThisMonth = $bwConsumedThisMonth + $colorConsumedThisMonth;
+    $totalConsumedThisMonth = $bwConsumedThisMonth + $colorConsumedThisMonth + $bwLargeConsumedThisMonth + $colorLargeConsumedThisMonth;
 
     // 4. Calculer le dépassement en fonction du quota mensuel de l'imprimante
     $depassementBW = 0;
@@ -74,7 +78,7 @@ public function store(Request $request)
 
 
     // Assurez-vous que la societe a un quota mensuel défini
-    if ($printer->company->quota_monthly) {
+    if ($printer->company->quota_monthly !== null && $printer->company->quota_monthly > 0) {
             if ($isColor) {
                 $quotaColor = ($printer->company->quota_Color/100) * $printer->company->quota_monthly;
                 $quotaBW = ($printer->company->quota_BW/100) * $printer->company->quota_monthly;
@@ -85,11 +89,29 @@ public function store(Request $request)
 
         // Si la consommation dépasse le quota, calculer le dépassement
         if ($bwConsumedThisMonth > $quotaBW) {
-            $depassementBW = $bwConsumedThisMonth - $quotaBW;
+            $depassementBW = ($bwConsumedThisMonth + $bwLargeConsumedThisMonth) - $quotaBW;
         }
 
         if ($colorConsumedThisMonth > $quotaColor) {
-            $depassementColor = $colorConsumedThisMonth - $quotaColor;
+            $depassementColor = ($colorConsumedThisMonth + $colorLargeConsumedThisMonth) - $quotaColor;
+        }
+    }
+    else if (($printer->department->quota_monthly !== null && $printer->department->quota_monthly > 0) && ($printer->company->quota_monthly === null || $printer->company->quota_monthly == 0)) {
+            if ($isColor) {
+                $quotaColor = ($printer->company->quota_Color/100) * $printer->department->quota_monthly;
+                $quotaBW = ($printer->company->quota_BW/100) * $printer->department->quota_monthly;
+        } else {
+            $quotaBW = $printer->monthly_quota_pages * 1;
+            $quotaColor = 0;
+        }
+
+        // Si la consommation dépasse le quota, calculer le dépassement
+        if ($bwConsumedThisMonth > $quotaBW) {
+            $depassementBW = ($bwConsumedThisMonth + $bwLargeConsumedThisMonth) - $quotaBW;
+        }
+
+        if ($colorConsumedThisMonth > $quotaColor) {
+            $depassementColor = ($colorConsumedThisMonth + $colorLargeConsumedThisMonth) - $quotaColor;
         }
     }
     // Transformer "2025-09" → "2025-09-01"
@@ -103,6 +125,8 @@ public function store(Request $request)
         'monthly_quota_bw' => $bwConsumedThisMonth,
         'monthly_quota_color' => $colorConsumedThisMonth,
         'total_quota' => $totalConsumedThisMonth,
+        'monthly_quota_bw_large' => $bwLargeConsumedThisMonth,
+        'monthly_quota_color_large' => $colorLargeConsumedThisMonth,
         'depassementBW' => $depassementBW,
         'depassementColor' => $depassementColor,
         'date_prelevement'=>$validated['date_prelevement'],
@@ -115,6 +139,8 @@ public function store(Request $request)
         'monthly_quota_bw' => $validated['monthly_quota_bw'],
         'monthly_quota_color' => $validated['monthly_quota_color'],
         'total_quota_pages' => $printer->total_quota_pages + $totalConsumedThisMonth,
+        'monthly_quota_bw_large' => $validated['monthly_quota_bw_large'],
+        'monthly_quota_color_large' => $validated['monthly_quota_color_large'],
     ]);
 
     // 7. Retourner la réponse
@@ -135,6 +161,8 @@ public function store(Request $request)
         $validated = $request->validate([
             'monthly_quota_bw' => 'sometimes|integer|min:0',
             'monthly_quota_color' => 'sometimes|integer|min:0',
+            'monthly_quota_bw_large' => 'sometimes|integer|min:0',
+            'monthly_quota_color_large' => 'sometimes|integer|min:0',
             'date_prelevement' => 'sometimes|date',
             'mois' => 'sometimes|date_format:Y-m',
         ]);
@@ -190,6 +218,8 @@ public function store(Request $request)
 
         // La nouvelle consommation du mois est la différence entre le nouveau relevé et le relevé du mois précédent
         $newConsumedBwThisMonth = max(0, ($validated['monthly_quota_bw'] ?? 0) - $oldPrinterBwReading);
+        $newConsumedBwLargeThisMonth = max(0, ($validated['monthly_quota_bw_large'] ?? 0) - ($previousQuota ? $previousQuota->monthly_quota_bw_large : 0));
+        $newConsumedColorLargeThisMonth = max(0, ($validated['monthly_quota_color_large'] ?? 0) - ($previousQuota ? $previousQuota->monthly_quota_color_large : 0));
         $newConsumedColorThisMonth = max(0, ($validated['monthly_quota_color'] ?? 0) - $oldPrinterColorReading);
         $newTotalConsumedThisMonth = $newConsumedBwThisMonth + $newConsumedColorThisMonth;
 
@@ -209,11 +239,11 @@ public function store(Request $request)
             }
 
             if ($newConsumedBwThisMonth > $quotaBW) {
-                $depassementBW = $newConsumedBwThisMonth - $quotaBW;
+                $depassementBW = ($newConsumedBwThisMonth + $newConsumedBwLargeThisMonth) - $quotaBW;
             }
 
             if ($newConsumedColorThisMonth > $quotaColor) {
-                $depassementColor = $newConsumedColorThisMonth - $quotaColor;
+                $depassementColor = ($newConsumedColorThisMonth + $newConsumedColorLargeThisMonth) - $quotaColor;
             }
         }
 
@@ -222,6 +252,8 @@ public function store(Request $request)
             'monthly_quota_bw' => $newConsumedBwThisMonth,
             'monthly_quota_color' => $newConsumedColorThisMonth,
             'total_quota' => $newTotalConsumedThisMonth,
+            'monthly_quota_bw_large' => $newConsumedBwLargeThisMonth,
+            'monthly_quota_color_large' => $newConsumedColorLargeThisMonth,
             'depassementBW' => $depassementBW,
             'depassementColor' => $depassementColor,
         ]);
@@ -231,6 +263,8 @@ public function store(Request $request)
             'monthly_quota_bw' => ($validated['monthly_quota_bw'] ?? 0),
             'monthly_quota_color' => ($validated['monthly_quota_color'] ?? 0),
             'total_quota_pages' => ($printer->total_quota_pages - $originalTotalQuota) + $newTotalConsumedThisMonth,
+            'monthly_quota_bw_large' => ($validated['monthly_quota_bw_large'] ?? 0),
+            'monthly_quota_color_large' => ($validated['monthly_quota_color_large'] ?? 0),
         ]);
 
         return $quota->load(['printer.company', 'printer.department']);

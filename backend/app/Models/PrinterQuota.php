@@ -16,6 +16,8 @@ class PrinterQuota extends Model
         'depassementColor',
         'depassementBW',
         'date_prelevement',
+        'monthly_quota_color_large',
+        'monthly_quota_bw_large',
         'mois',
     ];
      protected $casts = [

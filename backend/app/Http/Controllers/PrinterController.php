@@ -145,6 +145,8 @@ class PrinterController extends Controller
             'is_purchased' => 'required|boolean',
             'monthly_quota_color'=>'sometimes|integer',
             'monthly_quota_bw'=>'sometimes|integer',
+            'monthly_quota_color_large'=>'sometimes|integer',
+            'monthly_quota_bw_large'=>'sometimes|integer',
             // --- FIN DE LA NOUVELLE VALIDATION ---
         ]);
 
@@ -199,6 +201,8 @@ class PrinterController extends Controller
             // --- FIN DE LA NOUVELLE VALIDATION ---
             'monthly_quota_color'=>'sometimes|integer',
             'monthly_quota_bw'=>'sometimes|integer',
+            'monthly_quota_color_large'=>'sometimes|integer',
+            'monthly_quota_bw_large'=>'sometimes|integer',
         ]);
 
         if ($request->has('is_returned_to_warehouse')) {

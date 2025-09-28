@@ -12,6 +12,7 @@ class Department extends Model
     protected $fillable = [
         'name',
         'company_id',
+        'quota_monthly',
     ];
 
     // Un département appartient à une société (Company)
