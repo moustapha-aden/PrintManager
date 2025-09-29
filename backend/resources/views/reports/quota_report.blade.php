@@ -39,20 +39,42 @@
                 ({{ $quota->printer?->serial ?? '' }})
             </h2>
 
-            <ul class="details-list">
-                <li><strong>Département :</strong> {{ $quota->printer?->department?->name ?? 'N/A' }}</li>
-                <li><strong>Marque :</strong> {{ $quota->printer?->brand ?? 'N/A' }}</li>
-                <li><strong>Modèle :</strong> {{ $quota->printer?->model ?? 'N/A' }}</li>
-                <li><strong>Numéro de série :</strong> {{ $quota->printer?->serial ?? 'N/A' }}</li>
-                <li><strong>Total de quota :</strong> {{ $quota->total_quota ?? 0 }}</li>
-                <li><strong>Quota  :</strong> {{ $quota->company?->quota_monthly > 1 ? $quota->company?->quota_monthly : ($quota->department?->quota_monthly > 1 ? $quota->department?->quota_monthly : 0) }}</li>
-            </ul>
+            <table>
+                    <thead>
+                        <tr>
+                            <th>Département</th>
+                            <th>Marque</th>
+                            <th>Modèle</th>
+                            <th>Numéro de série</th>
+                            <th>Total de quota</th>
+                            <th>Quota</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{{ $quota->printer?->department?->name ?? 'N/A' }}</td>
+                            <td>{{ $quota->printer?->brand ?? 'N/A' }}</td>
+                            <td>{{ $quota->printer?->model ?? 'N/A' }}</td>
+                            <td>{{ $quota->printer?->serial ?? 'N/A' }}</td>
+                            <td>{{ $quota->total_quota ?? 0 }}</td>
+                            <td>
+                                {{
+                                    ($quota->printer?->company?->quota_monthly ?? 0) > 1
+                                        ? $quota->printer->company->quota_monthly
+                                        : (($quota->printer?->department?->quota_monthly ?? 0) > 1
+                                            ? $quota->printer->department->quota_monthly
+                                            : 0)
+                                }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
 
-            <h3>Relevés de Quotas</h3>
+
+            <h3>Relevés du Mois {{ \Carbon\Carbon::parse($quota->mois)->translatedFormat('F Y') }}</h3>
             <table>
                 <thead>
                     <tr>
-                        <th>Mois</th>
                         <th>Quota N&B</th>
                         <th>Quota Couleur</th>
                         <th>Total</th>
@@ -62,7 +84,6 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>{{ \Carbon\Carbon::parse($quota->mois)->translatedFormat('F Y') }}</td>
                         <td>{{ $quota->monthly_quota_bw }}</td>
                         <td>{{ $quota->monthly_quota_color }}</td>
                         <td>{{ $quota->total_quota }}</td>

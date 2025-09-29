@@ -24,7 +24,7 @@
     @endphp
 
     <div class="header">
-        <h1>Rapport de Quota Spécifique</h1>
+        <h1>Rapport Spécifique</h1>
         <p>Relevé du : {{ \Carbon\Carbon::parse($quota->date_prelevement)->format('d/m/Y') }}</p>
         <p>Imprimante : {{ $printer->brand }} {{ $printer->model }} ({{ $printer->serial }})</p>
         <p>Généré le : {{ date('d/m/Y') }}</p>
@@ -41,11 +41,15 @@
                 <th>Département</th>
                 <td>{{ $printer->department->name ?? 'N/A' }}</td>
             </tr>
+            <tr>
+                <th>Quota Mensuel</th>
+                <td> {{ ($printer->company->quota_monthly > 1 ? $printer->company->quota_monthly : ($printer->department->quota_monthly > 1 ? $printer->department->quota_monthly : 'N/A')) }}</td>
+            </tr>
         </table>
     </div>
 
     <div class="section">
-        <h2>Détails du Relevé du Mois <span>{{ \Carbon\Carbon::parse($quota->mois)->translatedFormat('F Y') }}</span></h2>
+        <h2>Détails du Relevé de Mois <span>{{ \Carbon\Carbon::parse($quota->mois)->translatedFormat('F Y') }}</span></h2>
         <table>
             <tbody>
                 <tr>
@@ -53,12 +57,20 @@
                     <td>{{ \Carbon\Carbon::parse($quota->date_prelevement)->format('d/m/Y') }}</td>
                 </tr>
                 <tr>
-                    <th>Quota Mensuel N&B</th>
+                    <th> Mensuel N&B</th>
                     <td>{{ $quota->monthly_quota_bw }}</td>
                 </tr>
                 <tr>
-                    <th>Quota Mensuel Couleur</th>
+                    <th> Mensuel N&B Grand format</th>
+                    <td>{{ $quota->monthly_quota_bw_large }}</td>
+                </tr>
+                <tr>
+                    <th>Mensuel Couleur</th>
                     <td>{{ $quota->monthly_quota_color }}</td>
+                </tr>
+                <tr>
+                    <th> Mensuel Couleur Grand format</th>
+                    <td>{{ $quota->monthly_quota_color_large }}</td>
                 </tr>
                 <tr>
                     <th>Total Quota</th>
