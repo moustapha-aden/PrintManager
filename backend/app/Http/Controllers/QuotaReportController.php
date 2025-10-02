@@ -23,7 +23,7 @@ class QuotaReportController extends Controller
 
         // 2. Requête de base
         $query = PrinterQuota::with(['printer.company', 'printer.department'])
-            ->whereBetween('created_at', [$request->start_date, $request->end_date])
+            ->whereBetween('mois', [$request->start_date, $request->end_date])
             ->where(function ($q) {
                 $q->where('total_quota', '>', 0)
                   ->orWhere('monthly_quota_bw', '>', 0)

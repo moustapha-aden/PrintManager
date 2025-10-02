@@ -48,10 +48,10 @@ public function store(Request $request)
     // 1. Validation des données du relevé
     $validated = $request->validate([
         'printer_id' => 'required|exists:printers,id',
-        'monthly_quota_bw' => 'required|integer|min:0',
-        'monthly_quota_bw_large' => 'required|integer|min:0',
-        'monthly_quota_color' => 'required|integer|min:0',
-        'monthly_quota_color_large' => 'required|integer|min:0',
+        'monthly_quota_bw' => 'sometimes|integer|min:0',
+        'monthly_quota_bw_large' => 'sometimes|integer|min:0',
+        'monthly_quota_color' => 'sometimes|integer|min:0',
+        'monthly_quota_color_large' => 'sometimes|integer|min:0',
         'date_prelevement'=> 'sometimes|date',
         'mois'=> 'sometimes|date',
 
@@ -60,7 +60,7 @@ public function store(Request $request)
     // 2. Récupérer l'imprimante pour obtenir les ANCIENNES valeurs
     $printer = Printer::findOrFail($validated['printer_id']);
 
-    $isColor = str_contains($printer->model, 'C');
+    $isColor = $printer->model ? str_contains($printer->model, 'C') : false;
 
 
     // 3. Calculer la consommation réelle du mois en cours
@@ -70,6 +70,7 @@ public function store(Request $request)
     $colorLargeConsumedThisMonth = max(0, $validated['monthly_quota_color_large'] - $printer->monthly_quota_color_large);
 
     $totalConsumedThisMonth = $bwConsumedThisMonth + $colorConsumedThisMonth + $bwLargeConsumedThisMonth + $colorLargeConsumedThisMonth;
+
 
     // 4. Calculer le dépassement en fonction du quota mensuel de l'imprimante
     $depassementBW = 0;
@@ -83,7 +84,7 @@ public function store(Request $request)
                 $quotaColor = ($printer->company->quota_Color/100) * $printer->company->quota_monthly;
                 $quotaBW = ($printer->company->quota_BW/100) * $printer->company->quota_monthly;
         } else {
-            $quotaBW = $printer->monthly_quota_pages * 1;
+            $quotaBW =$printer->company->quota_monthly;
             $quotaColor = 0;
         }
 
@@ -101,13 +102,15 @@ public function store(Request $request)
                 $quotaColor = ($printer->company->quota_Color/100) * $printer->department->quota_monthly;
                 $quotaBW = ($printer->company->quota_BW/100) * $printer->department->quota_monthly;
         } else {
-            $quotaBW = $printer->monthly_quota_pages * 1;
+            $quotaBW = $printer->department->quota_monthly;
             $quotaColor = 0;
         }
 
         // Si la consommation dépasse le quota, calculer le dépassement
         if ($bwConsumedThisMonth > $quotaBW) {
             $depassementBW = ($bwConsumedThisMonth + $bwLargeConsumedThisMonth) - $quotaBW;
+            log::info('bwConsumedThisMonth: '.$bwConsumedThisMonth);
+            log::info('depassementBW: '.($bwConsumedThisMonth + $bwLargeConsumedThisMonth - $quotaBW));
         }
 
         if ($colorConsumedThisMonth > $quotaColor) {
