@@ -88,12 +88,11 @@ public function store(Request $request)
             $quotaColor = 0;
         }
 
-        // Si la consommation dépasse le quota, calculer le dépassement
-        if ($bwConsumedThisMonth > $quotaBW) {
+        if (($bwConsumedThisMonth+$bwLargeConsumedThisMonth) > $quotaBW) {
             $depassementBW = ($bwConsumedThisMonth + $bwLargeConsumedThisMonth) - $quotaBW;
         }
 
-        if ($colorConsumedThisMonth > $quotaColor) {
+        if (($colorConsumedThisMonth + $colorLargeConsumedThisMonth) > $quotaColor) {
             $depassementColor = ($colorConsumedThisMonth + $colorLargeConsumedThisMonth) - $quotaColor;
         }
     }
@@ -107,13 +106,13 @@ public function store(Request $request)
         }
 
         // Si la consommation dépasse le quota, calculer le dépassement
-        if ($bwConsumedThisMonth > $quotaBW) {
+        if (($bwConsumedThisMonth+$bwLargeConsumedThisMonth) > $quotaBW) {
             $depassementBW = ($bwConsumedThisMonth + $bwLargeConsumedThisMonth) - $quotaBW;
             log::info('bwConsumedThisMonth: '.$bwConsumedThisMonth);
             log::info('depassementBW: '.($bwConsumedThisMonth + $bwLargeConsumedThisMonth - $quotaBW));
         }
 
-        if ($colorConsumedThisMonth > $quotaColor) {
+        if (($colorConsumedThisMonth + $colorLargeConsumedThisMonth) > $quotaColor) {
             $depassementColor = ($colorConsumedThisMonth + $colorLargeConsumedThisMonth) - $quotaColor;
         }
     }
