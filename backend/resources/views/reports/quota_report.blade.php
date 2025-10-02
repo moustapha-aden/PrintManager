@@ -64,6 +64,10 @@
                         <th>Numéro de série</th>
                         <td>{{ $quota->printer?->serial ?? 'N/A' }}</td>
                     </tr>
+                    <tr>
+                        <th>Nbr copie & imprimantes</th>
+                        <td>{{ $quota->printer?->total_quota_pages ?? 'N/A' }}</td>
+                    </tr>
 
 
 
@@ -116,20 +120,23 @@
                         <th>Nb imprimantes et copies en N&B</th>
                         <td>{{ $quota->monthly_quota_bw }}</td>
                     </tr>
-                    <tr>
-                        <th>Nb imprimantes et copies en Couleur</th>
-                        <td>{{ $quota->monthly_quota_color }}</td>
-                    </tr>
+                    @if(Str::contains($quota->printer?->model ?? '', 'C'))
+                        <tr>
+                            <th>Nb imprimantes et copies en Couleur</th>
+                            <td>{{ $quota->monthly_quota_color }}</td>
+                        </tr>
+                    @endif
 
                     <tr>
                         <th>Nb imprimantes et copies Grand format en N&B</th>
                         <td>{{ $quota->monthly_quota_bw_large }}</td>
                     </tr>
-                    <tr>
-                        <th>Nb imprimantes et copies Grand format en Couleur</th>
-                        <td>{{ $quota->monthly_quota_color_large }}</td>
-                    </tr>
-
+                    @if(Str::contains($quota->printer?->model ?? '', 'C'))
+                        <tr>
+                            <th>Nb imprimantes et copies Grand format en Couleur</th>
+                            <td>{{ $quota->monthly_quota_color_large }}</td>
+                        </tr>
+                    @endif
                     <tr>
                         <th>Total d'imprimantes et copies</th>
                         <td>{{ $quota->total_quota }}</td>
