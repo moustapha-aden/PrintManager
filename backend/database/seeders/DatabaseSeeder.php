@@ -17,7 +17,8 @@ class DatabaseSeeder extends Seeder
         DepartmentSeeder::class,
         UserSeeder::class,
         PrinterSeeder::class,
-        InterventionSeeder::class,
+        // InterventionSeeder::class,
+        MaterielleSeeder::class,
         // Ajoute d’autres seeders ici...
     ]);
 }

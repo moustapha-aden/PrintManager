@@ -20,7 +20,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
-
+use App\Http\Controllers\InventaireController;
+use App\Http\Controllers\MaterielleController;
 
 
 
@@ -100,6 +101,9 @@ Route::apiResource('brands', BrandController::class);
     Route::get('/analytics/departments-with-interventions', [AnalyticsController::class, 'getDepartmentsWithMostInterventions']);
     Route::get('/analytics/interventions/department/{departmentId}', [AnalyticsController::class, 'getInterventionsByDepartment']);
     Route::get('/analytics/all-interventions', [AnalyticsController::class, 'getAllInterventions']);
+
+    // materielle
+    Route::apiResource('materiel', MaterielleController::class)->parameter('materiel', 'materielle');
 
     // Route pour déplacer une imprimante
     Route::put('/printers/{printer}/move', [PrinterController::class, 'move'])->name('printers.move');
