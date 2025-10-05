@@ -104,6 +104,8 @@ Route::apiResource('brands', BrandController::class);
 
     // materielle
     Route::apiResource('materiel', MaterielleController::class)->parameter('materiel', 'materielle');
+    // Inventaire
+    Route::apiResource('inventaires', InventaireController::class);
 
     // Route pour déplacer une imprimante
     Route::put('/printers/{printer}/move', [PrinterController::class, 'move'])->name('printers.move');

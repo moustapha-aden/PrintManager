@@ -16,5 +16,9 @@ class Materielle extends Model
         'quantite',
         'sortie',
     ];
+    public function inventaires()
+{
+    return $this->hasMany(Inventaire::class, 'materiel_id');
+}
 
 }

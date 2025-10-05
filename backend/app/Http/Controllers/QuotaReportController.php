@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\PrinterQuota;
@@ -12,72 +13,71 @@ class QuotaReportController extends Controller
     {
         Log::info('Début génération rapport global', ['request' => $request->all()]);
 
-        // 1. Validation
+        // 1️⃣ Validation
         $request->validate([
             'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
+            'end_date'   => 'required|date|after_or_equal:start_date',
             'company_id' => 'sometimes|numeric',
             'department_id' => 'sometimes|numeric',
         ]);
-        Log::info('Validation OK');
 
-        // 2. Requête de base
+        // 2️⃣ Base query
         $query = PrinterQuota::with(['printer.company', 'printer.department'])
-            ->whereBetween('mois', [$request->start_date, $request->end_date])
-            ->where(function ($q) {
-                $q->where('total_quota', '>', 0)
-                  ->orWhere('monthly_quota_bw', '>', 0)
-                  ->orWhere('monthly_quota_color', '>', 0);
-            });
-        Log::info('Requête de base construite');
+            ->whereBetween('mois', [$request->start_date, $request->end_date]);
 
-        // 3. Filtrage conditionnel
+        // 3️⃣ Filtres optionnels
         if ($request->filled('company_id')) {
             $query->whereHas('printer', fn($q) => $q->where('company_id', $request->company_id));
-            Log::info("Filtre appliqué: company_id={$request->company_id}");
         }
-
         if ($request->filled('department_id')) {
             $query->whereHas('printer', fn($q) => $q->where('department_id', $request->department_id));
-            Log::info("Filtre appliqué: department_id={$request->department_id}");
         }
 
         $quotas = $query->get();
-        Log::info('Quotas récupérés', ['count' => $quotas->count()]);
-
-        // 4. Préparer les données pour la vue
-        $company = $quotas->isNotEmpty() ? $quotas->first()->printer?->company : null;
-        $department =$quotas->pluck('printer.department')
-                      ->unique('id')
-                      ->filter(); // retire les null
-        Log::info('Données pour vue préparées', ['company' => $company?->name,
-    'departments' => $department->pluck('name')->toArray()
-]);
-
-        // Log::info('Données pour vue préparées', ['company' => $company?->name, 'department' => $department?->name]);
-
-        $data = [
-            'quotas'     => $quotas,
-            'startDate'  => $request->start_date,
-            'endDate'    => $request->end_date,
-            'company'    => $company,
-            'department' => $department,
-        ];
-
         if ($quotas->isEmpty()) {
-            Log::warning('Aucun quota trouvé pour ces critères', [
-                'start_date' => $request->start_date,
-                'end_date' => $request->end_date,
-                'company_id' => $request->company_id ?? null,
-                'department_id' => $request->department_id ?? null
-            ]);
+            Log::warning('Aucun quota trouvé pour cette période.');
         }
 
-        // 5. Génération du PDF
-        $pdf = Pdf::loadView('reports.quota_report', $data);
-        Log::info('PDF généré', $data);
+        // 4️⃣ Calculs globaux côté controller
+        $totalDepassementBW = 0;
+        $totalDepassementColor = 0;
+        $totalPrinters = 0;
 
-        // 6. Retour du PDF en stream
-        return $pdf->stream("rapport_global_{$request->start_date}_{$request->end_date}.pdf");
+        foreach ($quotas as $quota) {
+            $totalDepassementBW += $quota->depassementBW ?? 0;
+            $totalDepassementColor += $quota->depassementColor ?? 0;
+            $totalPrinters++;
+        }
+
+        // Bilan général
+        $bilan = ($totalDepassementBW > 0 || $totalDepassementColor > 0)
+            ? '⚠️ Dépassements détectés'
+            : '✅ Aucun dépassement constaté';
+
+        // 5️⃣ Préparer les données pour la vue
+        $company = $quotas->isNotEmpty() ? $quotas->first()->printer?->company : null;
+        $department = $quotas->pluck('printer.department')->unique('id')->filter();
+
+        $data = [
+            'quotas' => $quotas,
+            'startDate' => $request->start_date,
+            'endDate' => $request->end_date,
+            'company' => $company,
+            'department' => $department,
+            'totalDepassementBW' => $totalDepassementBW,
+            'totalDepassementColor' => $totalDepassementColor,
+            'totalPrinters' => $totalPrinters,
+            'bilan' => $bilan,
+        ];
+
+        // 6️⃣ Génération PDF
+        $pdf = Pdf::loadView('reports.quota_report', $data);
+
+        // 7️⃣ Nom du fichier propre
+        $companyName = $company ? $company->name : 'toutes_les_compagnies';
+        $fileNameSlug = preg_replace('/[^A-Za-z0-9\_]/', '', str_replace(' ', '_', strtolower($companyName)));
+        $filename = "rapport_global_{$fileNameSlug}.pdf";
+
+        return $pdf->stream($filename);
     }
 }

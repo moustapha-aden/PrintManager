@@ -49,5 +49,9 @@ class Printer extends Model
         return $this->hasMany(PrinterQuota::class);
     }
 
+    public function inventaires()
+{
+    return $this->hasMany(Inventaire::class, 'printer_id');
+}
 
 }

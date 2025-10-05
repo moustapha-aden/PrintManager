@@ -25,7 +25,7 @@ class PrinterController extends Controller
         $query = Printer::query();
         $user = $request->user();
         // Charger les relations nécessaires pour l'affichage
-        $query->with(['company', 'department', 'interventions', 'interventions.technician']);
+        $query->with(['company', 'department', 'interventions', 'interventions.technician', 'inventaires']);
 
         // Filtrage spécifique pour clients
         if ($user->role === 'client') {
@@ -121,7 +121,7 @@ class PrinterController extends Controller
      */
     public function show($id)
     {
-        return Printer::with(['company', 'department', 'interventions', 'interventions.technician'])->findOrFail($id);
+        return Printer::with(['company', 'department', 'interventions', 'interventions.technician','inventaires.materiel'])->findOrFail($id);
     }
 
     /**
